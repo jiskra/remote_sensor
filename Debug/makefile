@@ -22,19 +22,19 @@ endif
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: remote_sensor_gateway
+all: Copy\ of\ remote_sensor_gateway
 
 # Tool invocations
-remote_sensor_gateway: $(OBJS) $(USER_OBJS)
+Copy\ of\ remote_sensor_gateway: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross GCC Linker'
-	gcc -Xlinker -rpath /usr/lib -Xlinker -rpath /lib -o "remote_sensor_gateway" $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc -Xlinker -rpath /usr/lib -Xlinker -rpath /lib -o "Copy of remote_sensor_gateway" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) remote_sensor_gateway
+	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) "Copy of remote_sensor_gateway"
 	-@echo ' '
 
 .PHONY: all clean dependents

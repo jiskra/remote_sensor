@@ -18,8 +18,10 @@
 
 extern unsigned char battery[];
 extern unsigned char alarm_dis[];
-extern unsigned int last[];
-extern unsigned int console_last;
+extern int last[];
+extern int console_last;
+extern unsigned char check_counter;
 
 void *thread_printmonitor(void *data);
+void *thread_oled_display(void *arg);
 #endif

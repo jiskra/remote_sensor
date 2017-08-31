@@ -1,5 +1,7 @@
 #include "read_comment.h"
 #define READ_NODE_DATA 0x02
+#define OK_COMMAND 0x21||0x22||0x23
+#define POWER_REPORT 0x22
 
 
 
@@ -12,8 +14,8 @@ void *thread_read_com(void *data){
 	unsigned char* frame_buff;
 	int buff_ptr=0;
 	int valid_data_length=0;
-	unsigned char check_sum=0;
-    struct upload_data upload_data_inst;
+	//unsigned char check_sum=0;
+    //struct upload_data upload_data_inst;
     struct upload_data *upload_data_tmp_inst;
 	//int i;
 	com_socket_fd_inst=(struct com_socket_fd*) data;
@@ -46,23 +48,52 @@ void *thread_read_com(void *data){
 				if (upload_data_tmp_inst->header1==0xfe&&upload_data_tmp_inst->header2==0xfc&&upload_data_tmp_inst->tail1==0xfb&&upload_data_tmp_inst->tail2==0xfa&&upload_data_tmp_inst->length==FRAME_LENGTH) {
 				  printf("A frame check,and the checksum is correct.\n");
 				  //memcpy(&upload_data_inst,serial_in_buff+buff_ptr+i,sizeof(upload_data_inst));
-				  pthread_mutex_lock(&socket_lock);
-				  ret=sendto(socket_fd, (void*)upload_data_tmp_inst, FRAME_LENGTH,0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
-				  pthread_mutex_unlock(&socket_lock);
+				  if (check_counter==0){
+					  pthread_mutex_lock(&socket_lock);
+					  ret=sendto(socket_fd, (void*)upload_data_tmp_inst, FRAME_LENGTH,0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
+					  pthread_mutex_unlock(&socket_lock);
+					  printf("Send Success %d.\n",ret);
+					  if (ret<0){
+					 	perror("Send File Name Failed:");
+					 	exit(1);
+					 			}
+				  }
+				  else{
+					  pthread_mutex_lock(&check_lock);
+					  check_counter-=1;
+					  pthread_mutex_unlock(&check_lock);
+				  }
 
 				 if (ret<0){
 				    perror("Send File Name Failed:");
 				    exit(1);
 				   }
 
-				  last[upload_data_tmp_inst->node_addr-1]=0;
-				  if (upload_data_tmp_inst->commend_type==0x02){
-					battery[upload_data_tmp_inst->node_addr-1]=upload_data_tmp_inst->addata[1]>>2;
+				  if (((upload_data_tmp_inst->commend_type== POWER_REPORT)||
+					   (upload_data_tmp_inst->commend_type== AD_REPORT)||
+					   (upload_data_tmp_inst->commend_type== UID_REPORT))
+						  && (upload_data_tmp_inst->node_addr<=MAX_NODE_NUM)){
+
+					  last[upload_data_tmp_inst->node_addr-1]=0;
 
 				  }
-				  if (upload_data_tmp_inst->commend_type==0x12){
-					  alarm_dis[upload_data_tmp_inst->node_addr-1]=upload_data_tmp_inst->addata[0];
+				  if ((upload_data_tmp_inst->commend_type==POWER_REPORT)&& (upload_data_tmp_inst->node_addr<=MAX_NODE_NUM)){
+
+					 battery[upload_data_tmp_inst->node_addr-1]=(unsigned char)((float)upload_data_tmp_inst->commend1/255*100);
+
 				  }
+
+				  if ((upload_data_tmp_inst->commend_type==EXCEPTION_REPORT)&&
+					  (upload_data_tmp_inst->node_addr<=MAX_NODE_NUM)&&
+					  (upload_data_tmp_inst->commend3==LOST_STATUS)){
+
+					  last[upload_data_tmp_inst->node_addr-1]=9999;
+				  }
+
+
+				  //if (upload_data_tmp_inst->commend_type==0x12){9
+					//  alarm_dis[upload_data_tmp_inst->node_addr-1]=upload_data_tmp_inst->addata[0];
+				 //}
 				  buff_ptr=buff_ptr+FRAME_LENGTH;
 				  valid_data_length=valid_data_length-FRAME_LENGTH;
 			    //}
@@ -98,20 +129,21 @@ void *thread_read_socket(void* data){
     	  if(recvfrom(socket_fd, (void*)&read_instru_packet_inst, sizeof(read_instru_packet_inst),0,(struct sockaddr*)&client_addr, &client_addr_length) == -1)
     	  {
     	  perror("Receive Data Failed:");
-    	  exit(1);
-          }
+    	  exit(1);}
     	  if (read_instru_packet_inst.header1==0xfc&&read_instru_packet_inst.header2==0xfe&& //
     		  read_instru_packet_inst.tail1==0xfa&&read_instru_packet_inst.tail2==0xfb){
     		  console_last=0;
     		   pthread_mutex_lock(&uart_lock);
     	       ret = write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     	       pthread_mutex_unlock(&uart_lock);
+    	       if((read_instru_packet_inst.instru==READ_THRESHOLD)&&(read_instru_packet_inst.node_addr<=MAX_NODE_NUM )){
+    	    	   alarm_dis[read_instru_packet_inst.node_addr-1]=read_instru_packet_inst.commend2;
+    	       }
     		   if(ret == -1){
     		   printf("Wirte com error./n");
-    		   pthread_exit(0);
-    		   }
+    		   pthread_exit(0);}
     		   else{
-    		   printf("data_send_successful",ret);
+    		   printf("data_send_successful %d",ret);
     		   }
     	  }
          }
@@ -132,21 +164,57 @@ void *thread_period_read_power(void* data){
     	read_instru_packet_inst.header1=0xfc;
     	read_instru_packet_inst.header2=0xfe;
     	read_instru_packet_inst.length =sizeof(read_instru_packet_inst);
-    	read_instru_packet_inst.instru=READ_NODE_DATA;
-    	read_instru_packet_inst.commend1=READ_POWER;
+    	read_instru_packet_inst.instru=READ_POWER;
+    	//read_instru_packet_inst.commend1=READ_POWER;
     	read_instru_packet_inst.tail1=0xfa;
     	read_instru_packet_inst.tail2=0xfb;
-    	for (i=0;i<6;i++){
-    	read_instru_packet_inst.node_addr=i+1;
-    	pthread_mutex_lock(&uart_lock);
-    	ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
-    	pthread_mutex_unlock(&uart_lock);
-    	if (ret<0){
-    		printf("Write Uart error.\n");
-    		pthread_exit(0);
-    	}
-    	sleep(2000);
-    	}
-
+    	//period read battery
+    	for (i=0;i<MAX_NODE_NUM;i++){
+    		read_instru_packet_inst.node_addr=i+1;
+    		pthread_mutex_lock(&uart_lock);
+    		ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    		pthread_mutex_unlock(&uart_lock);
+    		pthread_mutex_lock(&check_lock);
+    		check_counter+=1;
+    		pthread_mutex_unlock(&check_lock);
+    		if (ret<0){
+    			printf("Write Uart error.\n");
+    			pthread_exit(0);
+    		}
+    		sleep(120);
+    		}
+    }
+}
+void *thread_period_heartbeat(void* data){
+	int com_fd;
+	int socket_fd;
+	int ret;
+	int i;
+    struct com_socket_fd *com_socket_fd_inst;
+    //struct instru_packet instru_packet_inst;
+    struct read_instru_packet read_instru_packet_inst;
+    com_socket_fd_inst=(struct com_socket_fd *)data;
+    com_fd=com_socket_fd_inst->fd_com;
+    socket_fd=com_socket_fd_inst->fd_socket;
+    while(1){
+    	read_instru_packet_inst.header1=0xff;
+    	read_instru_packet_inst.header2=0xff;
+    	read_instru_packet_inst.length =sizeof(read_instru_packet_inst);
+    	read_instru_packet_inst.instru=0xff;
+    	read_instru_packet_inst.commend1=0xff;
+    	read_instru_packet_inst.tail1=0xff;
+    	read_instru_packet_inst.tail2=0xff;
+    	//period read battery
+    	/*for (i=0;i<MAX_NODE_NUM;i++){
+    		read_instru_packet_inst.node_addr=i+1;
+			 pthread_mutex_lock(&socket_lock);
+			 ret=sendto(socket_fd, (void*)&read_instru_packet_inst, sizeof(read_instru_packet_inst),0,(struct sockaddr*)&source_addr,sizeof(source_addr));
+			 pthread_mutex_unlock(&socket_lock);
+    		if (ret<0){
+    			printf("Write UDP error.\n");
+    			pthread_exit(0);
+    		}
+    		sleep(1000);
+    		} */
     }
 }
