@@ -16,12 +16,16 @@
 #include <pthread.h>
 #include <stdlib.h>
 
+#include "read_comment.h"
+#include "sim900a.h"
 extern unsigned char battery[];
 extern unsigned char alarm_dis[];
 extern int last[];
 extern int console_last;
 extern unsigned char check_counter;
+extern int verbose; //Debug message display
 
 void *thread_printmonitor(void *data);
 void *thread_oled_display(void *arg);
+void *thread_message_alarm(void *data);
 #endif

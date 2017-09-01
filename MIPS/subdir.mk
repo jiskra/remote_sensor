@@ -8,21 +8,24 @@ C_SRCS += \
 ../SSD1306.c \
 ../output.c \
 ../read_comment.c \
-../remote_sensor_gateway.c 
+../remote_sensor_gateway.c \
+../sim900a.c 
 
 OBJS += \
 ./Fonts.o \
 ./SSD1306.o \
 ./output.o \
 ./read_comment.o \
-./remote_sensor_gateway.o 
+./remote_sensor_gateway.o \
+./sim900a.o 
 
 C_DEPS += \
 ./Fonts.d \
 ./SSD1306.d \
 ./output.d \
 ./read_comment.d \
-./remote_sensor_gateway.d 
+./remote_sensor_gateway.d \
+./sim900a.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

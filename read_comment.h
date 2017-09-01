@@ -56,8 +56,12 @@ extern pthread_mutex_t check_lock;
 
 struct com_socket_fd{
 	int fd_com;
+	int fd_sim900a;
 	int fd_socket;
 	int fd_i2c;
+	int fd_sd;
+	char *phone_number;
+	char *hub_id;
 };
 
 /*struct instru_packet{

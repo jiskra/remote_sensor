@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <termios.h>
 #include <stdio.h>
+#include <getopt.h>
 #include <fcntl.h>
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
@@ -28,12 +29,14 @@
 #define SERVER_PORT 8000
 #define DIST_ADDR "192.168.1.104"
 #define SRC_ADDR "192.168.1.105"
+#define PHONE_NUMBER "15996315105"
 
 unsigned char battery[6];
 unsigned char alarm_dis[6];
 unsigned char check_counter=0;
 int last[6]={-1,-1,-1,-1,-1,-1};
 int console_last=-1;
+int verbose=0;
 
 int fd_i2c_;
 
@@ -108,19 +111,72 @@ int  uart_open (char *dev, int baud)
         return -1;
     }
 
-    printf("open uart:%s, baud:%d", dev, baud);
+    printf("open uart:%s, baud:%d\n", dev, baud);
     return fd;
 }
-
-int main(){
+void usage(){
+	printf("USE the -R -L -N for remoter ip addr and for local addr and phone number.\n");
+}
+int main(int argc, char **argv){
     int fd;
+    char *serv_addr=NULL;
+    char *local_addr=NULL;
+    char *phone_number=NULL;
+    char *hub_id=NULL;
+    const char const_serv_addr[20]=DIST_ADDR;
+    const char const_local_addr[20]=SRC_ADDR;
+    const char const_phone_number[20]=PHONE_NUMBER;
+    const char const_hub_id[20]="Test Sensor Hub";
+
     struct com_socket_fd com_socket_fd_inst;
-    pthread_t read_com_t,output_t,read_socket_t,period_read_t,heart_t;
+    pthread_t read_com_t,output_t,read_socket_t,period_read_t,heart_t,period_send_message_t;
 #ifdef OLED
     pthread_t oled_display_t;
     int fd_i2c;
+    int fd_sim900a;
 #endif
-    //初始化串口
+    int c;
+    while ((c = getopt(argc, argv, "hvR:L:N:H:")) != EOF) {
+
+    		switch (c) {
+    		case 'R':
+    			serv_addr = optarg;
+    			break;
+    		case 'L':
+    			local_addr= optarg;
+    			break;
+    		case 'N':
+    			phone_number = optarg;
+    			break;
+    		case 'H':
+    		    hub_id = optarg;
+    		    break;
+    		case 'v':
+    		    verbose = 1;
+    		    break;
+    		case 'h':
+    			usage();
+    		    break;
+    		default:
+    			usage();
+    		}
+    	}
+
+    if (serv_addr==NULL)   //if the parameter is not set,use the default
+    	serv_addr=const_serv_addr;
+    if (local_addr==NULL)
+    	local_addr=const_local_addr;
+    if (phone_number==NULL)
+    	phone_number=const_phone_number;
+    if (hub_id==NULL)
+    	hub_id=const_hub_id;
+    if (verbose){
+    	printf("SERVER IP ADDRESS is %s\n",serv_addr);
+    	printf("LOCAL IP ADDRESS is %s\n",local_addr);
+    	printf("PHONE_NUMBER is %s\n",phone_number);
+    	printf("HUB_ID is %s\n",hub_id);
+    }
+
     /* 创建UDP套接口 */
     struct sockaddr_in server_addr;
      bzero(&server_addr, sizeof(server_addr));
@@ -131,11 +187,11 @@ int main(){
      server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
      server_addr.sin_port = htons(SERVER_PORT);
 
-     dist_addr.sin_addr.s_addr = inet_addr(DIST_ADDR);
+     dist_addr.sin_addr.s_addr = inet_addr((const char*)serv_addr);
      dist_addr.sin_port = htons(SERVER_PORT);
      dist_addr.sin_family=AF_INET;
 
-     source_addr.sin_addr.s_addr = inet_addr(SRC_ADDR);
+     source_addr.sin_addr.s_addr = inet_addr((const char*)local_addr);
      source_addr.sin_port = htons(SERVER_PORT);
      source_addr.sin_family=AF_INET;
 
@@ -157,17 +213,23 @@ int main(){
 #ifdef OLED
     fd = uart_open("/dev/ttyS1",115200);
     printf("Target is ARM Open Serial /dev/ttyS1.\n");
+
+    fd_sim900a = uart_open("/dev/ttyS2",115200);
+    printf("Open uart2 for SIM900A to send message.\n");
+    if (fd_sim900a==-1)
+    	printf("Open Uart2 error,the Message is unreachable.\n");
+    com_socket_fd_inst.fd_sim900a=fd_sim900a;
 #else
     fd = uart_open("/dev/ttyUSB0",115200);
     printf("Target is x86 Open Serial /dev/ttyUSB0.\n");
 #endif
     if(fd == -1){
-        printf("open the com and set it.it's failed!");
+        printf("open the com and set it.it's failed!\n");
         return -1;
     }
     //open i2c fd
 #ifdef OLED
-    printf("hello, this is i2c tester\n");
+    printf("hello, open i2c for display\n");
        fd_i2c = open(I2C_DEV, O_RDWR);
        if (fd_i2c < 0)
        {
@@ -186,9 +248,14 @@ int main(){
 
     com_socket_fd_inst.fd_com=fd;
     com_socket_fd_inst.fd_socket=server_socket_fd;
+    com_socket_fd_inst.fd_sim900a=fd_sim900a;
+    com_socket_fd_inst.hub_id=hub_id;
+    com_socket_fd_inst.phone_number=phone_number;
+
 
 #ifdef OLED
     com_socket_fd_inst.fd_i2c=fd_i2c;
+
 #endif
     if(pthread_create(&read_com_t,NULL,(void *)thread_read_com,(void *)&com_socket_fd_inst) == -1){
         printf("Create the thread of read com error!\n");
@@ -206,7 +273,15 @@ int main(){
         	printf("Create the thread of period_read error!\n");
         	return -1;
         }
+
+
+
 #ifdef OLED
+    if (pthread_create(&period_send_message_t,NULL,(void *)thread_message_alarm,(void *)&com_socket_fd_inst) ==-1){
+            printf("Create the thread of send_message error!\n");
+            return -1;
+            }
+
     if (pthread_create(&oled_display_t,NULL,(void *)thread_oled_display,(void *)NULL) ==-1){
             	printf("Create the thread of period_read error!\n");
             	return -1;
@@ -224,6 +299,7 @@ int main(){
     pthread_join(read_com_t, NULL);
     pthread_join(read_socket_t,NULL);
     pthread_join(output_t,NULL);
+    pthread_join(heart_t,NULL);
     pthread_join(heart_t,NULL);
     return 0;
 
