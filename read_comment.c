@@ -2,7 +2,8 @@
 #define READ_NODE_DATA 0x02
 #define OK_COMMAND 0x21||0x22||0x23
 #define POWER_REPORT 0x22
-
+#define CONSOLE_TIME_OUT 7200
+#define MAX_FILE_LENGTH 10000
 
 
 
@@ -37,7 +38,8 @@ void *thread_read_com(void *data){
 		}
 		ret=read(com_fd,serial_in_buff+buff_ptr+valid_data_length,FRAME_LENGTH);
 		if (ret>0){
-		printf("Read Length is %d.\n",ret);}
+			if (verbose==2)
+				printf("Read Length is %d.\n",ret);}
 		else{
 		usleep(50000);
 		}
@@ -48,26 +50,68 @@ void *thread_read_com(void *data){
 				if (upload_data_tmp_inst->header1==0xfe&&upload_data_tmp_inst->header2==0xfc&&upload_data_tmp_inst->tail1==0xfb&&upload_data_tmp_inst->tail2==0xfa&&upload_data_tmp_inst->length==FRAME_LENGTH) {
 				  printf("A frame check,and the checksum is correct.\n");
 				  //memcpy(&upload_data_inst,serial_in_buff+buff_ptr+i,sizeof(upload_data_inst));
-				  if (check_counter==0){
+				 // if (check_counter==0){
 					  pthread_mutex_lock(&socket_lock);
 					  ret=sendto(socket_fd, (void*)upload_data_tmp_inst, FRAME_LENGTH,0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
 					  pthread_mutex_unlock(&socket_lock);
 					  printf("Send Success %d.\n",ret);
 					  if (ret<0){
-					 	perror("Send File Name Failed:");
-					 	exit(1);
-					 			}
-				  }
-				  else{
+					 	perror("Send SOCKET Failed:");
+					 	exit(1);}
+					  time_t timer;
+					  struct tm *tblock;
+					  timer = time(NULL);
+					  tblock = localtime(&timer);
+
+					  if (console_last>CONSOLE_TIME_OUT){
+						  if (com_socket_fd_inst->fd_sd<0){
+						  char filename_buff[100];
+						  sprintf(filename_buff,"\\tmp\\mounts\\SD-P1\\%s.dat", asctime(tblock));
+						  if (com_socket_fd_inst->fd_sd=open(filename_buff,O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR)){
+							 if (verbose)
+							      perror("Creat the datalog file.\n");
+							 write(com_socket_fd_inst->fd_sd,asctime(tblock),strlen(asctime(tblock)));
+							 if (verbose)
+							 	perror("Write file.\n");
+							 file_counter++;
+							 if (file_counter>MAX_FILE_LENGTH){
+								 close(com_socket_fd_inst->fd_sd);
+								 if (verbose)
+								 perror("Close SD file.\n");
+							 }
+							 write(com_socket_fd_inst->fd_sd,upload_data_tmp_inst,sizeof(upload_data_tmp_inst));
+							 if (verbose)
+								 perror("Write file.\n");
+							 file_counter++;
+							 if (file_counter>MAX_FILE_LENGTH){
+							 	close(com_socket_fd_inst->fd_sd);
+							 	if (verbose)
+							 	perror("Close SD file.\n");
+							 							 }
+						   }
+						  }
+						else{
+
+						char filename_buff[100];
+					    sprintf(filename_buff,"/tmp/mounts/SD-P1%s.dat", asctime(tblock));
+						 if (verbose)
+							perror("Creat the datalog file.\n");
+						 write(com_socket_fd_inst->fd_sd,asctime(tblock),strlen(asctime(tblock)));
+						 if (verbose)
+							perror("Write file.\n");
+						  write(com_socket_fd_inst->fd_sd,upload_data_tmp_inst,sizeof(upload_data_tmp_inst));
+						 if (verbose)
+						    perror("Write file.\n");
+						  }
+					  }
+
+				 // }
+				 /* else{
 					  pthread_mutex_lock(&check_lock);
 					  check_counter-=1;
 					  pthread_mutex_unlock(&check_lock);
-				  }
+				  }*/
 
-				 if (ret<0){
-				    perror("Send File Name Failed:");
-				    exit(1);
-				   }
 
 				  if (((upload_data_tmp_inst->commend_type== POWER_REPORT)||
 					   (upload_data_tmp_inst->commend_type== AD_REPORT)||
@@ -79,7 +123,7 @@ void *thread_read_com(void *data){
 				  }
 				  if ((upload_data_tmp_inst->commend_type==POWER_REPORT)&& (upload_data_tmp_inst->node_addr<=MAX_NODE_NUM)){
 
-					 battery[upload_data_tmp_inst->node_addr-1]=(unsigned char)((float)upload_data_tmp_inst->commend1/255*100);
+					 battery[upload_data_tmp_inst->node_addr-1]=upload_data_tmp_inst->commend1;
 
 				  }
 
@@ -116,20 +160,41 @@ void *thread_read_socket(void* data){
 	int com_fd,socket_fd;
 	int ret;
     struct com_socket_fd *com_socket_fd_inst;
-
+    int packet_length;
     struct read_instru_packet read_instru_packet_inst;
+    struct manage_packet manage_packet_inst;
+    char socket_rec_ptr[500];
     com_socket_fd_inst=(struct com_socket_fd *)data;
     com_fd=com_socket_fd_inst->fd_com;
     socket_fd=com_socket_fd_inst->fd_socket;
+    int i;
+    if (verbose)
+    	printf("Enter Socket received thread.\n");
     while(1){
     	  /* 定义一个地址，用于捕获客户端地址 */
     	  struct sockaddr_in client_addr;
     	  socklen_t client_addr_length = sizeof(client_addr);
 
-    	  if(recvfrom(socket_fd, (void*)&read_instru_packet_inst, sizeof(read_instru_packet_inst),0,(struct sockaddr*)&client_addr, &client_addr_length) == -1)
+    	  if(recvfrom(socket_fd, (void*)socket_rec_ptr, sizeof(read_instru_packet_inst),0,(struct sockaddr*)&client_addr, &client_addr_length) == -1)
     	  {
-    	  perror("Receive Data Failed:");
     	  exit(1);}
+    	  perror("Receive Data Failed:");
+    	  memcpy((void*)&read_instru_packet_inst,(void*)socket_rec_ptr,sizeof(read_instru_packet_inst));
+    	  memcpy((void*)&manage_packet_inst,(void*)socket_rec_ptr,sizeof(manage_packet_inst));
+    	  if (manage_packet_inst.head==0xf0f0){
+    	     		  if (verbose)
+    	     			  printf("Received the Manage packet.\n");
+    	     		  console_last=0;
+    	     		  com_socket_fd_inst->num_of_phone_number=manage_packet_inst.num_of_phone_number;
+    	     		  if (verbose)
+    	     			  printf("Num of Phone Number is %d.\n",manage_packet_inst.num_of_phone_number);
+    	     		  for (i=0;i<com_socket_fd_inst->num_of_phone_number;i++){
+    	     		  com_socket_fd_inst->phone_number[i]=manage_packet_inst.phone_number[i];
+    	     		  if (verbose){
+    	     			  printf("The %d's PHONE NUMBER is %s.\n",i,com_socket_fd_inst->phone_number[i]);
+    	     		  }
+    	     		  }
+    	     	  }
     	  if (read_instru_packet_inst.header1==0xfc&&read_instru_packet_inst.header2==0xfe&& //
     		  read_instru_packet_inst.tail1==0xfa&&read_instru_packet_inst.tail2==0xfb){
     		  console_last=0;
@@ -146,6 +211,7 @@ void *thread_read_socket(void* data){
     		   printf("data_send_successful %d",ret);
     		   }
     	  }
+
          }
 }
 
@@ -160,20 +226,62 @@ void *thread_period_read_power(void* data){
     com_socket_fd_inst=(struct com_socket_fd *)data;
     com_fd=com_socket_fd_inst->fd_com;
     socket_fd=com_socket_fd_inst->fd_socket;
+    read_instru_packet_inst.header1=0xfc;
+    read_instru_packet_inst.header2=0xfe;
+
+    read_instru_packet_inst.tail1=0xfa;
+    read_instru_packet_inst.tail2=0xfb;
+
+    read_instru_packet_inst.length =sizeof(read_instru_packet_inst);
+    read_instru_packet_inst.instru=SET_ZIGBEE;
+    read_instru_packet_inst.commend1=(unsigned char)(com_socket_fd_inst->channel_id);
+    read_instru_packet_inst.commend2=(unsigned char)(com_socket_fd_inst->PANID>>8);
+    if (verbose)
+    	printf("PAIN ID high byte is %x.\n",read_instru_packet_inst.commend2);
+    read_instru_packet_inst.commend3=(unsigned char)(com_socket_fd_inst->PANID&0xff);
+    if (verbose)
+        printf("PAIN ID low byte is %x.\n",read_instru_packet_inst.commend3);
+    pthread_mutex_lock(&uart_lock);
+    ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    pthread_mutex_unlock(&uart_lock);
+    if (verbose)
+    	perror("Set Channel and PANID:");
+
+    read_instru_packet_inst.instru=READ_POWER;
+        	//read_instru_packet_inst.commend1=READ_POWER;
+
+        	//period read battery
+     for (i=0;i<MAX_NODE_NUM;i++){
+        read_instru_packet_inst.node_addr=i+1;
+        pthread_mutex_lock(&uart_lock);
+        ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+        pthread_mutex_unlock(&uart_lock);
+        if (verbose)
+        	printf("Read Power.\n");
+        	pthread_mutex_lock(&check_lock);
+        	check_counter+=1;
+        	pthread_mutex_unlock(&check_lock);
+        	if (ret<0){
+        		printf("Write Uart error.\n");
+        		pthread_exit(0);
+        	}
+        		sleep(5);
+        	}
+
     while(1){
-    	read_instru_packet_inst.header1=0xfc;
-    	read_instru_packet_inst.header2=0xfe;
-    	read_instru_packet_inst.length =sizeof(read_instru_packet_inst);
+
+
     	read_instru_packet_inst.instru=READ_POWER;
     	//read_instru_packet_inst.commend1=READ_POWER;
-    	read_instru_packet_inst.tail1=0xfa;
-    	read_instru_packet_inst.tail2=0xfb;
+
     	//period read battery
     	for (i=0;i<MAX_NODE_NUM;i++){
     		read_instru_packet_inst.node_addr=i+1;
     		pthread_mutex_lock(&uart_lock);
     		ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     		pthread_mutex_unlock(&uart_lock);
+    		if (verbose)
+    			printf("Read Power.\n");
     		pthread_mutex_lock(&check_lock);
     		check_counter+=1;
     		pthread_mutex_unlock(&check_lock);
@@ -196,25 +304,32 @@ void *thread_period_heartbeat(void* data){
     com_socket_fd_inst=(struct com_socket_fd *)data;
     com_fd=com_socket_fd_inst->fd_com;
     socket_fd=com_socket_fd_inst->fd_socket;
+    read_instru_packet_inst.header1=0xfc;
+    read_instru_packet_inst.header2=0xfe;
+
+    read_instru_packet_inst.tail1=0xfa;
+    read_instru_packet_inst.tail2=0xfb;
+
+    read_instru_packet_inst.length =sizeof(read_instru_packet_inst);
+    read_instru_packet_inst.instru=READ_AD;
+    read_instru_packet_inst.commend1=0x00;
+    read_instru_packet_inst.commend2=0x00;
+    read_instru_packet_inst.commend3=0x00;
+    if (verbose)
+    	printf("Enter the period READ AD thread.\n");
     while(1){
-    	read_instru_packet_inst.header1=0xff;
-    	read_instru_packet_inst.header2=0xff;
-    	read_instru_packet_inst.length =sizeof(read_instru_packet_inst);
-    	read_instru_packet_inst.instru=0xff;
-    	read_instru_packet_inst.commend1=0xff;
-    	read_instru_packet_inst.tail1=0xff;
-    	read_instru_packet_inst.tail2=0xff;
     	//period read battery
-    	/*for (i=0;i<MAX_NODE_NUM;i++){
+    	for (i=0;i<MAX_NODE_NUM;i++){
+    		sleep(300);
     		read_instru_packet_inst.node_addr=i+1;
-			 pthread_mutex_lock(&socket_lock);
-			 ret=sendto(socket_fd, (void*)&read_instru_packet_inst, sizeof(read_instru_packet_inst),0,(struct sockaddr*)&source_addr,sizeof(source_addr));
-			 pthread_mutex_unlock(&socket_lock);
+    		pthread_mutex_lock(&uart_lock);
+    		ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    		pthread_mutex_unlock(&uart_lock);
     		if (ret<0){
     			printf("Write UDP error.\n");
     			pthread_exit(0);
     		}
-    		sleep(1000);
-    		} */
+
+    		}
     }
 }

@@ -8,6 +8,7 @@ int send_message (int fd,char *send_number,char *message)
     //char  message[128];
     char  reply[128];
     char *message_buff;
+    char *send_number_buff;
     message_buff=malloc(256*sizeof(char));
     if (verbose)
     	perror("Malloc buff for Message Sending");
@@ -71,7 +72,8 @@ int init_sim900a(int fd){
 	write(fd,at,strlen(at));
 	if (verbose)
 		perror("write the Second AT.\n");
-
+	write(fd,"\x1a",1);
+	sleep(5);
 	//write the ATE0 to Turn off the echo display
 	write(fd,ate0,strlen(ate0));
 	if (verbose)

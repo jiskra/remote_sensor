@@ -15,6 +15,8 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <stddef.h>
+#include <time.h>
 
 #define MAX_NODE_NUM 6
 #define COMM_IN_LENGTH 73
@@ -24,8 +26,10 @@
 #define READ_LATEST_UPDATA 0x01
 #define READ_POWER 0x22
 #define READ_UID 0x04
+#define READ_AD 0x21
 
 #define READ_THRESHOLD 0x15
+#define SET_ZIGBEE 0x50
 
 #define READ_NODE_DATA 0x02
 #define AD_REPORT 0x21
@@ -49,7 +53,8 @@ extern int console_last;
 extern unsigned char check_counter;
 extern struct sockaddr_in dist_addr;
 extern struct sockaddr_in source_addr;
-
+extern int verbose;
+extern int file_counter;
 extern pthread_mutex_t uart_lock;
 extern pthread_mutex_t socket_lock;
 extern pthread_mutex_t check_lock;
@@ -60,8 +65,20 @@ struct com_socket_fd{
 	int fd_socket;
 	int fd_i2c;
 	int fd_sd;
-	char *phone_number;
+	int fd_log;
+	char *phone_number[5];
+	int num_of_phone_number;
 	char *hub_id;
+	unsigned char channel_id;
+	unsigned short PANID;
+	char *serv_addr;
+	char *local_addr;
+};
+struct manage_packet{
+	unsigned short head;
+	char phone_number[5][12];
+	int  num_of_phone_number;
+	char message[100];
 };
 
 /*struct instru_packet{

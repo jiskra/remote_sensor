@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -15,6 +16,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <termios.h>
+#include <time.h>
 #include <stdio.h>
 #include <getopt.h>
 #include <fcntl.h>
@@ -27,8 +29,8 @@
 #define OLED_ADDR 0x3C
 
 #define SERVER_PORT 8000
-#define DIST_ADDR "192.168.1.104"
-#define SRC_ADDR "192.168.1.105"
+#define DIST_ADDR "192.168.0.5"
+#define SRC_ADDR "192.168.0.5"
 #define PHONE_NUMBER "15996315105"
 
 unsigned char battery[6];
@@ -36,7 +38,8 @@ unsigned char alarm_dis[6];
 unsigned char check_counter=0;
 int last[6]={-1,-1,-1,-1,-1,-1};
 int console_last=-1;
-int verbose=0;
+int verbose=0; //verbose mode
+int file_counter=0;
 
 int fd_i2c_;
 
@@ -44,7 +47,7 @@ int fd_i2c_;
 pthread_mutex_t uart_lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t socket_lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t check_lock=PTHREAD_MUTEX_INITIALIZER;
-
+pthread_mutex_t file_lock=PTHREAD_MUTEX_INITIALIZER;
 struct sockaddr_in dist_addr,source_addr;
 //串口打开的初始化
 //参数：串口设备的路径名 dev，设置整型的波特率（注意格式匹配）
@@ -115,7 +118,16 @@ int  uart_open (char *dev, int baud)
     return fd;
 }
 void usage(){
-	printf("USE the -R -L -N for remoter ip addr and for local addr and phone number.\n");
+	printf("USE the -R -L -N -C -P for remoter ip addr and for local addr and phone number.\n");
+	printf("-R  <address> Server IP address.\n");
+	printf("-L  <address> Local IP address.\n");
+	printf("-p  <port>    address port");
+	printf("-N  <telephone number> Default Phone Number.\n");
+	printf("-C  <ID> Set the Channel id.\n");
+	printf("-P  <PANID> Set the PANID.\n");
+	printf("-v  <level> verbose mode.\n");
+	printf("       1   first level.\n");
+	printf("       2   second level.\n");
 }
 int main(int argc, char **argv){
     int fd;
@@ -123,10 +135,14 @@ int main(int argc, char **argv){
     char *local_addr=NULL;
     char *phone_number=NULL;
     char *hub_id=NULL;
+    int port=0;
+    unsigned char channel_id;
+    unsigned short PANID;
     const char const_serv_addr[20]=DIST_ADDR;
     const char const_local_addr[20]=SRC_ADDR;
     const char const_phone_number[20]=PHONE_NUMBER;
     const char const_hub_id[20]="Test Sensor Hub";
+    const char const_file_path[50]="~/";
 
     struct com_socket_fd com_socket_fd_inst;
     pthread_t read_com_t,output_t,read_socket_t,period_read_t,heart_t,period_send_message_t;
@@ -136,7 +152,7 @@ int main(int argc, char **argv){
     int fd_sim900a;
 #endif
     int c;
-    while ((c = getopt(argc, argv, "hvR:L:N:H:")) != EOF) {
+    while ((c = getopt(argc, argv, "hv:R:L:N:H:C:P:p:")) != EOF) {
 
     		switch (c) {
     		case 'R':
@@ -151,14 +167,24 @@ int main(int argc, char **argv){
     		case 'H':
     		    hub_id = optarg;
     		    break;
+    		case 'C':
+    		    channel_id = atoi(optarg);
+    		    break;
+    		case 'p':
+    		    port = atoi(optarg);
+    		    break;
+    		case 'P':
+    			PANID=atoi(optarg);
+    			break;
     		case 'v':
-    		    verbose = 1;
+    		    verbose = atoi(optarg);
     		    break;
     		case 'h':
     			usage();
     		    break;
     		default:
     			usage();
+    			return -1;
     		}
     	}
 
@@ -170,11 +196,15 @@ int main(int argc, char **argv){
     	phone_number=const_phone_number;
     if (hub_id==NULL)
     	hub_id=const_hub_id;
+    if (port==0)
+    	port=SERVER_PORT;
     if (verbose){
     	printf("SERVER IP ADDRESS is %s\n",serv_addr);
     	printf("LOCAL IP ADDRESS is %s\n",local_addr);
+    	printf("SERVER PORT is %d\n",port);
     	printf("PHONE_NUMBER is %s\n",phone_number);
     	printf("HUB_ID is %s\n",hub_id);
+    	printf("PAIN_ID is %x\n",PANID);
     }
 
     /* 创建UDP套接口 */
@@ -185,14 +215,14 @@ int main(int argc, char **argv){
 
      server_addr.sin_family = AF_INET;
      server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-     server_addr.sin_port = htons(SERVER_PORT);
+     server_addr.sin_port = htons(port);
 
      dist_addr.sin_addr.s_addr = inet_addr((const char*)serv_addr);
-     dist_addr.sin_port = htons(SERVER_PORT);
+     dist_addr.sin_port = htons(port);
      dist_addr.sin_family=AF_INET;
 
      source_addr.sin_addr.s_addr = inet_addr((const char*)local_addr);
-     source_addr.sin_port = htons(SERVER_PORT);
+     source_addr.sin_port = htons(port);
      source_addr.sin_family=AF_INET;
 
      /* 创建socket */
@@ -209,6 +239,20 @@ int main(int argc, char **argv){
       perror("Server Bind Failed:");
       exit(1);
      }
+#ifdef OLED
+    int fd_sd;
+    time_t timer;//time_t就是long int 类型
+    struct tm *tblock;
+    timer = time(NULL);
+    tblock = localtime(&timer);
+    char filename_buff[100];
+
+    sprintf(filename_buff,"\\tmp\\mounts\\SD-P1\\%s.dat", asctime(tblock));
+    fd_sd=open(filename_buff,O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+    if (verbose)
+    	perror("Creat the datalog file.\n");
+
+#endif
      //open uart fd
 #ifdef OLED
     fd = uart_open("/dev/ttyS1",115200);
@@ -248,31 +292,45 @@ int main(int argc, char **argv){
 
     com_socket_fd_inst.fd_com=fd;
     com_socket_fd_inst.fd_socket=server_socket_fd;
+#ifdef OLED
     com_socket_fd_inst.fd_sim900a=fd_sim900a;
+#endif
     com_socket_fd_inst.hub_id=hub_id;
-    com_socket_fd_inst.phone_number=phone_number;
+    com_socket_fd_inst.phone_number[0]=phone_number;
+    com_socket_fd_inst.num_of_phone_number=1;
+    com_socket_fd_inst.channel_id=channel_id;
+    com_socket_fd_inst.PANID=PANID;
+    com_socket_fd_inst.serv_addr=serv_addr;
+    com_socket_fd_inst.local_addr=local_addr;
+
+
 
 
 #ifdef OLED
     com_socket_fd_inst.fd_i2c=fd_i2c;
-
+    com_socket_fd_inst.fd_sd=fd_sd;
 #endif
     if(pthread_create(&read_com_t,NULL,(void *)thread_read_com,(void *)&com_socket_fd_inst) == -1){
         printf("Create the thread of read com error!\n");
         return -1;
     }
+    perror("Create the thread of read com");
     if (pthread_create(&read_socket_t,NULL,(void *)thread_read_socket,(void *)&com_socket_fd_inst) ==-1){
     	printf("Create the thread of read socket error!\n");
     	return -1;
     }
+    perror("Create the thread of read socket");
+
     if (pthread_create(&output_t,NULL,(void *)thread_printmonitor,(void *)0) ==-1){
     	printf("Create the thread of output error!\n");
     	return -1;
     }
+    perror("Create the thread of output");
     if (pthread_create(&period_read_t,NULL,(void *)thread_period_read_power,(void *)&com_socket_fd_inst) ==-1){
         	printf("Create the thread of period_read error!\n");
         	return -1;
         }
+    perror("Create the thread of period_read");
 
 
 
@@ -281,12 +339,13 @@ int main(int argc, char **argv){
             printf("Create the thread of send_message error!\n");
             return -1;
             }
-
-    if (pthread_create(&oled_display_t,NULL,(void *)thread_oled_display,(void *)NULL) ==-1){
+    perror("Create the thread of send_message ");
+    if (pthread_create(&oled_display_t,NULL,(void *)thread_oled_display,(void *)&com_socket_fd_inst) ==-1){
             	printf("Create the thread of period_read error!\n");
             	return -1;
             }
-    pthread_join(oled_display_t, NULL);
+    perror("Create the thread of period_read");
+
     printf("OLED Display over.\n");
 #endif
 
@@ -301,6 +360,9 @@ int main(int argc, char **argv){
     pthread_join(output_t,NULL);
     pthread_join(heart_t,NULL);
     pthread_join(heart_t,NULL);
+#ifdef OLED
+    pthread_join(oled_display_t, NULL);
+#endif
     return 0;
 
 }

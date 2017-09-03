@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #define MAX_NODE_NUM 6
+#define MAX_PHONE_NUM 5
 
 #ifdef OLED
 #include "SSD1306.h"
@@ -73,13 +74,40 @@ void *thread_printmonitor(void *data)
 void *thread_oled_display(void *arg){
 		int i;
 		unsigned char message[20];
+		struct com_socket_fd *com_socket_fd_inst;
+		com_socket_fd_inst=(struct com_socket_fd*) arg;
+		char dispaly_buff[20];
+
 		ssd1306_init();
 		while (1){
+	   ssd1306_clear_screen(0xFF);
+	   sleep(1);
+	   ssd1306_clear_screen(0x00);
+	   sprintf(dispaly_buff,"Channel_ID:%d",com_socket_fd_inst->channel_id);
+	   ssd1306_display_string(0, 16, dispaly_buff, 16, 1);
+
+
+	   sprintf(dispaly_buff,"PANID:0x%x",com_socket_fd_inst->PANID);
+	   ssd1306_display_string(0, 32, dispaly_buff, 16, 1);
+
+	   if (com_socket_fd_inst->fd_sd<0)
+		   ssd1306_display_string(0, 48, "Creat file error", 16, 1);
+	   else
+		   ssd1306_display_string(0, 48, "Creat file OK", 16, 1);
+
+	   ssd1306_refresh_gram();
+
+	   sleep(2);
+
+
+
 	    ssd1306_clear_screen(0xFF);
 	    sleep(1);
 		ssd1306_clear_screen(0x00);
-		ssd1306_display_string(0, 0, "IP:192.168.1.104", 16, 1);
-		ssd1306_display_string(0, 16, "S:192.168.1.105", 16, 1);
+		sprintf(dispaly_buff,"R:%s",com_socket_fd_inst->serv_addr);
+		ssd1306_display_string(0, 0, dispaly_buff, 16, 1);
+		sprintf(dispaly_buff,"L:%s",com_socket_fd_inst->local_addr);
+		ssd1306_display_string(0, 16, dispaly_buff, 16, 1);
 		ssd1306_display_string(0, 32, "Remoter Sensor Gateway!", 16, 1);
 
 		ssd1306_display_string(0, 48, "CSL last:", 16, 1);
@@ -91,6 +119,15 @@ void *thread_oled_display(void *arg){
 		sleep(3);
 		ssd1306_clear_screen(0x00);
 
+		ssd1306_display_string(0, 0, "Phone number table", 16, 1);
+		for(i=0;i<com_socket_fd_inst->num_of_phone_number;i++){
+
+			ssd1306_display_string(0, (i+1)*16, com_socket_fd_inst->phone_number[i], 16, 1);
+
+		}
+		ssd1306_refresh_gram();
+		sleep(2);
+		ssd1306_clear_screen(0x00);
 		for (i=0;i<6;i++){
 
 
@@ -150,23 +187,26 @@ void *thread_oled_display(void *arg){
 void *thread_message_alarm(void *data){
 	int fd_sim900a;
 	int alarm_register[MAX_NODE_NUM];
-	char *phone_number;
+	char *phone_number[5];
+	char num_of_phone_number;
 	char *hub_id;
 	char alarm_message[100]="ALARM!!! Hub ID is ";
 	const char const_alarm_message[]="ALARM!!! Hub ID is ";
 	char alarm_value_message[100];
 	int error;
-	int i;
+	int i,j;
 	struct com_socket_fd *com_socket_fd_inst;
 	com_socket_fd_inst=(struct com_socket_fd*) data;
 	fd_sim900a=com_socket_fd_inst->fd_sim900a;
-	phone_number=com_socket_fd_inst->phone_number;
+	for (i=0;i<MAX_PHONE_NUM;i++)
+	  phone_number[i]=com_socket_fd_inst->phone_number[i];
+	num_of_phone_number=com_socket_fd_inst->num_of_phone_number;//NUM of Phone Number
 	hub_id=com_socket_fd_inst->hub_id;
 
     strcat(alarm_message,hub_id);
 	if (verbose){
 		printf("Enter send message thread.\n");
-		printf("ALARM Message is %s\n PHONE NUMBER is %s\n",alarm_message,phone_number);
+		printf("ALARM Message is %s\n PHONE NUMBER is %s\n",alarm_message,phone_number[0]);
 		printf("FD_SIM900A is %x",fd_sim900a);
 	}
 
@@ -178,7 +218,8 @@ void *thread_message_alarm(void *data){
 	}
     if (verbose&&error>0){
     	printf("Send a test message.\n");
-    	send_message (fd_sim900a,phone_number,"This is a test message!");
+    	for (j=0;j<num_of_phone_number;j++)
+    	send_message (fd_sim900a,phone_number[j],"This is a test message!");
     }
     while(1){
 	for (i=0;i<MAX_NODE_NUM;i++){
@@ -191,8 +232,10 @@ void *thread_message_alarm(void *data){
 			    printf("Sending alarm message.\n");
 			sprintf(alarm_value_message,"Node_ID=%d Value=%d",i,alarm_dis[i]);
 			strcat(alarm_message,alarm_value_message);
-			send_message (fd_sim900a,phone_number,alarm_message);
+			for (j=0;j<num_of_phone_number;j++)
+			send_message (fd_sim900a,phone_number[j],alarm_message);
 			strcpy(alarm_message,const_alarm_message);
+			strcat(alarm_message,hub_id);
 			}
 		}
 		sleep(60);
