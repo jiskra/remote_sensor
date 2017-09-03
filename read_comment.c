@@ -175,13 +175,14 @@ void *thread_read_socket(void* data){
     	  struct sockaddr_in client_addr;
     	  socklen_t client_addr_length = sizeof(client_addr);
 
-    	  if(recvfrom(socket_fd, (void*)socket_rec_ptr, sizeof(read_instru_packet_inst),0,(struct sockaddr*)&client_addr, &client_addr_length) == -1)
+    	  if(recvfrom(socket_fd, (void*)socket_rec_ptr, (sizeof(read_instru_packet_inst)>sizeof(manage_packet_inst))?sizeof(read_instru_packet_inst):sizeof(manage_packet_inst),0,(struct sockaddr*)&client_addr, &client_addr_length) == -1)
     	  {
     	  exit(1);}
     	  perror("Receive Data Failed:");
     	  memcpy((void*)&read_instru_packet_inst,(void*)socket_rec_ptr,sizeof(read_instru_packet_inst));
     	  memcpy((void*)&manage_packet_inst,(void*)socket_rec_ptr,sizeof(manage_packet_inst));
     	  if (manage_packet_inst.head==0xf0f0){
+
     	     		  if (verbose)
     	     			  printf("Received the Manage packet.\n");
     	     		  console_last=0;
@@ -194,6 +195,13 @@ void *thread_read_socket(void* data){
     	     			  printf("The %d's PHONE NUMBER is %s.\n",i,com_socket_fd_inst->phone_number[i]);
     	     		  }
     	     		  }
+    	     		  com_socket_fd_inst->short_message=manage_packet_inst.message;
+    	     		  if (verbose){
+    	     			  printf("Send MESSAGE: %s \n",manage_packet_inst.message);
+    	     		  }
+    	     		 pthread_mutex_lock(&message_lock);
+    	     		 send_short_message=1;
+    	     		 pthread_mutex_unlock(&message_lock);
     	     	  }
     	  if (read_instru_packet_inst.header1==0xfc&&read_instru_packet_inst.header2==0xfe&& //
     		  read_instru_packet_inst.tail1==0xfa&&read_instru_packet_inst.tail2==0xfb){
@@ -201,14 +209,24 @@ void *thread_read_socket(void* data){
     		   pthread_mutex_lock(&uart_lock);
     	       ret = write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     	       pthread_mutex_unlock(&uart_lock);
-    	       if((read_instru_packet_inst.instru==READ_THRESHOLD)&&(read_instru_packet_inst.node_addr<=MAX_NODE_NUM )){
+    	       if((read_instru_packet_inst.instru==READ_THRESHOLD)&&(read_instru_packet_inst.node_addr<=MAX_NODE_NUM&&read_instru_packet_inst.node_addr>0 )){
     	    	   alarm_dis[read_instru_packet_inst.node_addr-1]=read_instru_packet_inst.commend2;
+    	    	   if (verbose)
+    	    		   printf("Received Set Threshold and alarm packet.\n");
     	       }
+
+    	       if((read_instru_packet_inst.instru==SET_SAMPLE_RATE)&&(read_instru_packet_inst.node_addr<=MAX_NODE_NUM&&read_instru_packet_inst.node_addr>0 )){
+    	    	   if (verbose)
+    	    		   printf("Received Set Sensor Sample rate and interval packet.\n");
+    	    	   if (read_instru_packet_inst.commend3>0)
+    	    	   sample_interval[read_instru_packet_inst.node_addr-1]=read_instru_packet_inst.commend3;
+    	       }
+
     		   if(ret == -1){
-    		   printf("Wirte com error./n");
+    		   printf("Wirte com error.\n");
     		   pthread_exit(0);}
     		   else{
-    		   printf("data_send_successful %d",ret);
+    		   printf("Data_send_successful %d\n",ret);
     		   }
     	  }
 
@@ -289,7 +307,7 @@ void *thread_period_read_power(void* data){
     			printf("Write Uart error.\n");
     			pthread_exit(0);
     		}
-    		sleep(120);
+    		sleep(300);
     		}
     }
 }
@@ -297,7 +315,8 @@ void *thread_period_heartbeat(void* data){
 	int com_fd;
 	int socket_fd;
 	int ret;
-	int i;
+	int i,j;
+    int sample_counter[6];
     struct com_socket_fd *com_socket_fd_inst;
     //struct instru_packet instru_packet_inst;
     struct read_instru_packet read_instru_packet_inst;
@@ -320,16 +339,21 @@ void *thread_period_heartbeat(void* data){
     while(1){
     	//period read battery
     	for (i=0;i<MAX_NODE_NUM;i++){
-    		sleep(300);
-    		read_instru_packet_inst.node_addr=i+1;
-    		pthread_mutex_lock(&uart_lock);
-    		ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
-    		pthread_mutex_unlock(&uart_lock);
-    		if (ret<0){
-    			printf("Write UDP error.\n");
-    			pthread_exit(0);
-    		}
+    		if (5*sample_interval[i]>=sample_counter[i]){
+    			sample_counter[i]=0;
+    			read_instru_packet_inst.node_addr=i+1;
+    			pthread_mutex_lock(&uart_lock);
+    			ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    			pthread_mutex_unlock(&uart_lock);
+    			if (ret<0){
+    				printf("Write UDP error.\n");
+    				pthread_exit(0);}
+    			}
+    		sleep(60);
+    		for(j=0;j<MAX_NODE_NUM;j++){
+    		    sample_counter[i]=sample_counter[i]+1;
+    		    }
 
-    		}
+    	}
     }
 }

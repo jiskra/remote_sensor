@@ -30,6 +30,7 @@
 
 #define READ_THRESHOLD 0x15
 #define SET_ZIGBEE 0x50
+#define SET_SAMPLE_RATE 0x14
 
 #define READ_NODE_DATA 0x02
 #define AD_REPORT 0x21
@@ -49,6 +50,8 @@ void *thread_period_heartbeat(void* data);
 extern unsigned char battery[];
 extern unsigned char alarm_dis[];
 extern int last[];
+extern unsigned char  sample_interval[];
+extern unsigned char send_short_message;
 extern int console_last;
 extern unsigned char check_counter;
 extern struct sockaddr_in dist_addr;
@@ -58,6 +61,8 @@ extern int file_counter;
 extern pthread_mutex_t uart_lock;
 extern pthread_mutex_t socket_lock;
 extern pthread_mutex_t check_lock;
+extern pthread_mutex_t file_lock;
+extern pthread_mutex_t message_lock;
 
 struct com_socket_fd{
 	int fd_com;
@@ -68,6 +73,7 @@ struct com_socket_fd{
 	int fd_log;
 	char *phone_number[5];
 	int num_of_phone_number;
+	char *short_message;
 	char *hub_id;
 	unsigned char channel_id;
 	unsigned short PANID;
@@ -77,7 +83,7 @@ struct com_socket_fd{
 struct manage_packet{
 	unsigned short head;
 	char phone_number[5][12];
-	int  num_of_phone_number;
+	short  num_of_phone_number;
 	char message[100];
 };
 

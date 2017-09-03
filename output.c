@@ -31,23 +31,23 @@ void *thread_printmonitor(void *data)
 	  printf ("      Remote sensor monitor\n");
 	  switch (t%4){
 	    case 0:
-	      printf(" Node_ID  Battery   Alarm    Last--\n");
+	      printf(" Node_ID          Battery          Alarm         Interval        Last--\n");
 	      break;
 	    case 1:
-	      printf(" Node_ID  Battery   Alarm    Last\\\n");
+	      printf(" Node_ID          Battery          Alarm         Interval        Last\\\n");
 	      break;
 	    case 2:
-	      printf(" Node_ID  Battery   Alarm    Last|\n");
+	      printf(" Node_ID          Battery          Alarm         Interval        Last|\n");
 	      break;
 	    case 3:
-	      printf(" Node_ID  Battery   Alarm    Last/\n");
+	      printf(" Node_ID          Battery          Alarm         Interval        Last/\n");
 	      break;
 	    default:
-	      printf(" Node_ID  Battery   Alarm    Last--\n");
+	      printf(" Node_ID          Battery          Alarm         Interval        Last--\n");
 	      break;
 	   }
 	  for (i=0;i<6;i++){
-		 printf("Node_ID(%d)     %d        %d        %d\n",i+1,battery[i],alarm_dis[i],last[i]);
+		 printf("Node_ID(%d)     %3d        %3d        %3d        %4d\n",i+1,battery[i],alarm_dis[i],sample_interval[i],last[i]);
 		 if (last[i]>=9999)
 			 last[i]=9999;
 
@@ -133,19 +133,20 @@ void *thread_oled_display(void *arg){
 
 		//display the battery
 		 ssd1306_draw_bitmap(0, 4, &c_chBat816[0], 16, 8);
-		 if (last[i]<0)
-			 ssd1306_display_string(18, 0, "null", 16, 1);
-		 else{
-		 snprintf(message, 4, "%d", battery[i]);
-		 ssd1306_display_string(18, 0, message, 16, 1);}
+		 //if (last[i]<0)
+		//	 ssd1306_display_string(18, 0, "null", 16, 1);
+		 //else{
+		 //snprintf(message, 4, "%d", battery[i]);
+		 //ssd1306_display_string(18, 0, message, 16, 1);}
 
 		 //display the alarm
 		 ssd1306_draw_bitmap(64, 4, &c_chAlarm88[0], 8, 8);
-		 if (last[i]<0)
+		 /*if (last[i]<0)
 			 ssd1306_display_string(74, 0, "null", 16, 1);
 		 else{
 		 snprintf(message, 5, "%d", alarm_dis[i]);
-		 ssd1306_display_string(74, 0, message, 16, 1);}
+		 ssd1306_display_string(74, 0, message, 16, 1);}*/
+
 
 		 if ((i+1)/10)
 			 ssd1306_draw_3216char(0 ,16, '0'+(i+1)/10);
@@ -159,14 +160,37 @@ void *thread_oled_display(void *arg){
 		//ssd1306_draw_1616char(96,32, '4');
 		//ssd1306_draw_1616char(112,32, '7');
 		//ssd1306_draw_bitmap(87, 16, &c_chBmp4016[0], 40, 16);
-		if (last[i]<0)
+		if (last[i]<0){
 			ssd1306_display_string(58, 20, " UNKOW!", 16, 1);
-		else if (last[i]>TIMEOUT)
+			ssd1306_display_string(18, 0, "null", 16, 1);
+			ssd1306_display_string(74, 0, "null", 16, 1);
+		}
+		else if (last[i]>TIMEOUT){
 			ssd1306_display_string(58, 20, " LOSS! ", 16, 1);
-		else if (alarm_dis[i]>0)
+			ssd1306_display_string(18, 0, "null", 16, 1);
+			ssd1306_display_string(74, 0, "null", 16, 1);}
+		else if (alarm_dis[i]>0){
 			ssd1306_display_string(58, 20, " ALARM!", 16, 1);
-		else
+			snprintf(message, 4, "%d", battery[i]);
+			ssd1306_display_string(18, 0, "    ", 16, 1);
+			ssd1306_display_string(18, 0, message, 16, 1);
+
+			snprintf(message, 5, "%d", alarm_dis[i]);
+			ssd1306_display_string(74, 0, "     ", 16, 1);
+			ssd1306_display_string(74, 0, message, 16, 1);
+		}
+		else{
 			ssd1306_display_string(58, 20, " I'M OK", 16, 1);
+
+			snprintf(message, 4, "%d", battery[i]);
+			ssd1306_display_string(18, 0, "    ", 16, 1);
+			ssd1306_display_string(18, 0, message, 16, 1);
+
+			snprintf(message, 5, "%d", alarm_dis[i]);
+			ssd1306_display_string(74, 0, "     ", 16, 1);
+			ssd1306_display_string(74, 0, message, 16, 1);
+
+		}
 
 
 
@@ -198,15 +222,15 @@ void *thread_message_alarm(void *data){
 	struct com_socket_fd *com_socket_fd_inst;
 	com_socket_fd_inst=(struct com_socket_fd*) data;
 	fd_sim900a=com_socket_fd_inst->fd_sim900a;
-	for (i=0;i<MAX_PHONE_NUM;i++)
-	  phone_number[i]=com_socket_fd_inst->phone_number[i];
+	//for (i=0;i<MAX_PHONE_NUM;i++)
+	//  phone_number[i]=com_socket_fd_inst->phone_number[i];
 	num_of_phone_number=com_socket_fd_inst->num_of_phone_number;//NUM of Phone Number
 	hub_id=com_socket_fd_inst->hub_id;
 
     strcat(alarm_message,hub_id);
 	if (verbose){
 		printf("Enter send message thread.\n");
-		printf("ALARM Message is %s\n PHONE NUMBER is %s\n",alarm_message,phone_number[0]);
+		printf("ALARM Message is %s\n PHONE NUMBER is %s\n",alarm_message,com_socket_fd_inst->phone_number[0]);
 		printf("FD_SIM900A is %x",fd_sim900a);
 	}
 
@@ -219,28 +243,27 @@ void *thread_message_alarm(void *data){
     if (verbose&&error>0){
     	printf("Send a test message.\n");
     	for (j=0;j<num_of_phone_number;j++)
-    	send_message (fd_sim900a,phone_number[j],"This is a test message!");
+    	send_message (fd_sim900a,com_socket_fd_inst->phone_number[j],"This is a test message!");
     }
+
+
     while(1){
-	for (i=0;i<MAX_NODE_NUM;i++){
-		if (alarm_register[i]!=alarm_dis[i]||(verbose&&error>0)){
-			if (verbose)
-				printf("Ready for send alarm message.\n");
-			alarm_register[i]=alarm_dis[i];
-			if (alarm_register[i]>0||(verbose&&error>0)){
-			if (verbose)
-			    printf("Sending alarm message.\n");
-			sprintf(alarm_value_message,"Node_ID=%d Value=%d",i,alarm_dis[i]);
-			strcat(alarm_message,alarm_value_message);
-			for (j=0;j<num_of_phone_number;j++)
-			send_message (fd_sim900a,phone_number[j],alarm_message);
-			strcpy(alarm_message,const_alarm_message);
-			strcat(alarm_message,hub_id);
-			}
-		}
+       if (send_short_message!=0&&error>0){
+
+
+    	printf("Send a Alarm message.\n");
+    	for (j=0;j<num_of_phone_number;j++){
+    	send_message (fd_sim900a,com_socket_fd_inst->phone_number[j],com_socket_fd_inst->short_message);
+    	if (verbose)
+    	send_message (fd_sim900a,com_socket_fd_inst->phone_number[j],"This is a ALARM TEST Message!!!");
+    	}
+
+    	pthread_mutex_lock(&message_lock);
+    	send_short_message=0;
+    	pthread_mutex_unlock(&message_lock);}
+
 		sleep(60);
 	}
-   }
 
    exit(1);
 

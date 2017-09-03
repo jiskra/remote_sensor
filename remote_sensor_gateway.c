@@ -29,12 +29,14 @@
 #define OLED_ADDR 0x3C
 
 #define SERVER_PORT 8000
-#define DIST_ADDR "192.168.0.5"
+#define DIST_ADDR "192.168.0.7"
 #define SRC_ADDR "192.168.0.5"
 #define PHONE_NUMBER "15996315105"
 
 unsigned char battery[6];
 unsigned char alarm_dis[6];
+unsigned char sample_interval[6]={1,1,1,1,1,1};
+unsigned char send_short_message=0;
 unsigned char check_counter=0;
 int last[6]={-1,-1,-1,-1,-1,-1};
 int console_last=-1;
@@ -48,6 +50,7 @@ pthread_mutex_t uart_lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t socket_lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t check_lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t file_lock=PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t message_lock=PTHREAD_MUTEX_INITIALIZER;
 struct sockaddr_in dist_addr,source_addr;
 //串口打开的初始化
 //参数：串口设备的路径名 dev，设置整型的波特率（注意格式匹配）
