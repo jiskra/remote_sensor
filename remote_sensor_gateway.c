@@ -51,6 +51,8 @@ pthread_mutex_t socket_lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t check_lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t file_lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t message_lock=PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t write_ad_lock=PTHREAD_MUTEX_INITIALIZER;
+
 struct sockaddr_in dist_addr,source_addr;
 //串口打开的初始化
 //参数：串口设备的路径名 dev，设置整型的波特率（注意格式匹配）
@@ -248,10 +250,14 @@ int main(int argc, char **argv){
     struct tm *tblock;
     timer = time(NULL);
     tblock = localtime(&timer);
-    char filename_buff[100];
+    char filename_buff[200];
+    char filename_console_buff[200]="echo Create file > ";
 
-    sprintf(filename_buff,"\\tmp\\mounts\\SD-P1\\%s.dat", asctime(tblock));
-    fd_sd=open(filename_buff,O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+    sprintf(filename_buff,"/tmp/mounts/SD-P1/%d", timer);
+    //strcat(filename_console_buff,asctime(tblock));
+    strcat(filename_console_buff,filename_buff);
+    system(filename_console_buff);
+    fd_sd=open(filename_buff,O_WRONLY | O_CREAT);
     if (verbose)
     	perror("Creat the datalog file.\n");
 

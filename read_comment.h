@@ -63,6 +63,7 @@ extern pthread_mutex_t socket_lock;
 extern pthread_mutex_t check_lock;
 extern pthread_mutex_t file_lock;
 extern pthread_mutex_t message_lock;
+extern pthread_mutex_t write_ad_lock;
 
 struct com_socket_fd{
 	int fd_com;

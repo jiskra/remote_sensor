@@ -65,9 +65,17 @@ void *thread_read_com(void *data){
 
 					  if (console_last>CONSOLE_TIME_OUT){
 						  if (com_socket_fd_inst->fd_sd<0){
-						  char filename_buff[100];
-						  sprintf(filename_buff,"\\tmp\\mounts\\SD-P1\\%s.dat", asctime(tblock));
-						  if (com_socket_fd_inst->fd_sd=open(filename_buff,O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR)){
+							  char filename_buff[200];
+							  char filename_console_buff[200]="echo Create file > ";
+							  sprintf(filename_buff,"/tmp/mounts/SD-P1/%d", timer);
+							  //strcat(filename_console_buff,asctime(tblock));
+							  strcat(filename_console_buff,filename_buff);
+							  system(filename_console_buff);
+							  com_socket_fd_inst->fd_sd=open(filename_buff,O_WRONLY | O_CREAT);
+							  if (verbose)
+							      perror("Creat the datalog file.\n");
+
+						  if (com_socket_fd_inst->fd_sd=open(filename_buff,O_WRONLY | O_CREAT)){
 							 if (verbose)
 							      perror("Creat the datalog file.\n");
 							 write(com_socket_fd_inst->fd_sd,asctime(tblock),strlen(asctime(tblock)));
@@ -91,11 +99,6 @@ void *thread_read_com(void *data){
 						   }
 						  }
 						else{
-
-						char filename_buff[100];
-					    sprintf(filename_buff,"/tmp/mounts/SD-P1%s.dat", asctime(tblock));
-						 if (verbose)
-							perror("Creat the datalog file.\n");
 						 write(com_socket_fd_inst->fd_sd,asctime(tblock),strlen(asctime(tblock)));
 						 if (verbose)
 							perror("Write file.\n");
@@ -124,6 +127,11 @@ void *thread_read_com(void *data){
 				  if ((upload_data_tmp_inst->commend_type==POWER_REPORT)&& (upload_data_tmp_inst->node_addr<=MAX_NODE_NUM)){
 
 					 battery[upload_data_tmp_inst->node_addr-1]=upload_data_tmp_inst->commend1;
+					 if (check_counter>0){
+						 pthread_mutex_lock(&check_lock);
+						 check_counter-=1;
+						 pthread_mutex_unlock(&check_lock);
+					 }
 
 				  }
 
@@ -132,6 +140,11 @@ void *thread_read_com(void *data){
 					  (upload_data_tmp_inst->commend3==LOST_STATUS)){
 
 					  last[upload_data_tmp_inst->node_addr-1]=9999;
+					  if (check_counter>0){
+						  pthread_mutex_lock(&check_lock);
+						  check_counter-=1;
+						  pthread_mutex_unlock(&check_lock);
+					  }
 				  }
 
 
@@ -197,7 +210,7 @@ void *thread_read_socket(void* data){
     	     		  }
     	     		  com_socket_fd_inst->short_message=manage_packet_inst.message;
     	     		  if (verbose){
-    	     			  printf("Send MESSAGE: %s \n",manage_packet_inst.message);
+    	     			  printf("Send MESSAGE: %s\n",manage_packet_inst.message);
     	     		  }
     	     		 pthread_mutex_lock(&message_lock);
     	     		 send_short_message=1;
@@ -206,9 +219,6 @@ void *thread_read_socket(void* data){
     	  if (read_instru_packet_inst.header1==0xfc&&read_instru_packet_inst.header2==0xfe&& //
     		  read_instru_packet_inst.tail1==0xfa&&read_instru_packet_inst.tail2==0xfb){
     		  console_last=0;
-    		   pthread_mutex_lock(&uart_lock);
-    	       ret = write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
-    	       pthread_mutex_unlock(&uart_lock);
     	       if((read_instru_packet_inst.instru==READ_THRESHOLD)&&(read_instru_packet_inst.node_addr<=MAX_NODE_NUM&&read_instru_packet_inst.node_addr>0 )){
     	    	   alarm_dis[read_instru_packet_inst.node_addr-1]=read_instru_packet_inst.commend2;
     	    	   if (verbose)
@@ -221,6 +231,23 @@ void *thread_read_socket(void* data){
     	    	   if (read_instru_packet_inst.commend3>0)
     	    	   sample_interval[read_instru_packet_inst.node_addr-1]=read_instru_packet_inst.commend3;
     	       }
+
+    	       if ((read_instru_packet_inst.instru==READ_AD)&&(read_instru_packet_inst.node_addr<=MAX_NODE_NUM&&read_instru_packet_inst.node_addr>0 )){
+    	         	pthread_mutex_lock(&write_ad_lock);
+    	         	if (verbose)
+    	         		printf("[debug]Read AD data lock com.\n");
+    	         	pthread_mutex_lock(&uart_lock);
+    	         	ret = write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    	         	pthread_mutex_unlock(&uart_lock);
+    	         	sleep(60);
+    	         	pthread_mutex_unlock(&write_ad_lock);
+    	         	if (verbose)
+    	         	    printf("[debug]Read AD data unlock com.\n");
+    	         		  }
+    	         else{
+    	        	 pthread_mutex_lock(&uart_lock);
+    	        	 ret = write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    	        	 pthread_mutex_unlock(&uart_lock);}
 
     		   if(ret == -1){
     		   printf("Wirte com error.\n");
@@ -271,19 +298,29 @@ void *thread_period_read_power(void* data){
         	//period read battery
      for (i=0;i<MAX_NODE_NUM;i++){
         read_instru_packet_inst.node_addr=i+1;
+        pthread_mutex_lock(&write_ad_lock);
+        if (verbose)
+            printf("[debug]Read power lock com.\n");
         pthread_mutex_lock(&uart_lock);
         ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
         pthread_mutex_unlock(&uart_lock);
+        if (verbose)
+        	printf("[debug] Read power.\n ");
+        sleep(10);
+        pthread_mutex_unlock(&write_ad_lock);
+        if (verbose)
+            printf("[debug]Read power unlock com.\n");
+
         if (verbose)
         	printf("Read Power.\n");
         	pthread_mutex_lock(&check_lock);
         	check_counter+=1;
         	pthread_mutex_unlock(&check_lock);
-        	if (ret<0){
-        		printf("Write Uart error.\n");
-        		pthread_exit(0);
+        if (ret<0){
+        	printf("Write Uart error.\n");
+        	pthread_exit(0);
         	}
-        		sleep(5);
+        	sleep(5);
         	}
 
     while(1){
@@ -295,9 +332,17 @@ void *thread_period_read_power(void* data){
     	//period read battery
     	for (i=0;i<MAX_NODE_NUM;i++){
     		read_instru_packet_inst.node_addr=i+1;
+    		pthread_mutex_lock(&write_ad_lock);
+    		if (verbose)
+    		  printf("[debug]Read power lock com.\n");
     		pthread_mutex_lock(&uart_lock);
     		ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     		pthread_mutex_unlock(&uart_lock);
+    		sleep(10);
+    		pthread_mutex_unlock(&write_ad_lock);
+    		if (verbose)
+    		  printf("[debug]Read power unlock com.\n");
+
     		if (verbose)
     			printf("Read Power.\n");
     		pthread_mutex_lock(&check_lock);
@@ -307,7 +352,7 @@ void *thread_period_read_power(void* data){
     			printf("Write Uart error.\n");
     			pthread_exit(0);
     		}
-    		sleep(300);
+    		sleep(60);
     		}
     }
 }
@@ -338,13 +383,22 @@ void *thread_period_heartbeat(void* data){
     	printf("Enter the period READ AD thread.\n");
     while(1){
     	//period read battery
+    	if (verbose!=3){
     	for (i=0;i<MAX_NODE_NUM;i++){
-    		if (5*sample_interval[i]>=sample_counter[i]){
+    		if (sample_counter[i]>5*sample_interval[i]){
     			sample_counter[i]=0;
     			read_instru_packet_inst.node_addr=i+1;
+    			pthread_mutex_lock(&write_ad_lock);
+    			if (verbose)
+    			    printf("[debug]Read AD data lock com.\n");
     			pthread_mutex_lock(&uart_lock);
     			ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     			pthread_mutex_unlock(&uart_lock);
+    			sleep(60);
+    			pthread_mutex_unlock(&write_ad_lock);
+    			if (verbose)
+    			    printf("[debug]Read AD data unlock com.\n");
+
     			if (ret<0){
     				printf("Write UDP error.\n");
     				pthread_exit(0);}
@@ -354,6 +408,7 @@ void *thread_period_heartbeat(void* data){
     		    sample_counter[i]=sample_counter[i]+1;
     		    }
 
+    	}
     	}
     }
 }

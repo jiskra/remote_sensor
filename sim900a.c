@@ -61,7 +61,7 @@ int init_sim900a(int fd){
 	char cpin[]="AT+CPIN?\r";
 	char reply[128];
 
-	system("~/sim900a_init.sh");
+	system("sim900a_init.sh");
 	sleep(30);
 	//write the AT twice for Baund Rate Train
 

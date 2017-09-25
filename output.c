@@ -83,6 +83,13 @@ void *thread_oled_display(void *arg){
 	   ssd1306_clear_screen(0xFF);
 	   sleep(1);
 	   ssd1306_clear_screen(0x00);
+	   if (sim900a_error==0)
+	   ssd1306_display_string(0, 0, "GSM READY", 16, 1);
+	   else if (sim900a_error==-1)
+	   ssd1306_display_string(0, 0, "SIM ERROR", 16, 1);
+	   else if (sim900a_error==-2)
+	   ssd1306_display_string(0, 0, "NET ERROR", 16, 1);
+
 	   sprintf(dispaly_buff,"Channel_ID:%d",com_socket_fd_inst->channel_id);
 	   ssd1306_display_string(0, 16, dispaly_buff, 16, 1);
 
@@ -119,14 +126,22 @@ void *thread_oled_display(void *arg){
 		sleep(3);
 		ssd1306_clear_screen(0x00);
 
-		ssd1306_display_string(0, 0, "Phone number table", 16, 1);
-		for(i=0;i<com_socket_fd_inst->num_of_phone_number;i++){
+		ssd1306_display_string(0, 0, "Phone Number", 16, 1);
+		for(i=0;i<(com_socket_fd_inst->num_of_phone_number<3?com_socket_fd_inst->num_of_phone_number:3);i++){
 
 			ssd1306_display_string(0, (i+1)*16, com_socket_fd_inst->phone_number[i], 16, 1);
 
 		}
 		ssd1306_refresh_gram();
 		sleep(2);
+
+		for(i=3;i<(com_socket_fd_inst->num_of_phone_number>3?com_socket_fd_inst->num_of_phone_number:3);i++){
+
+					ssd1306_display_string(0, (i-2)*16, com_socket_fd_inst->phone_number[i], 16, 1);
+
+				}
+
+
 		ssd1306_clear_screen(0x00);
 		for (i=0;i<6;i++){
 
@@ -249,7 +264,7 @@ void *thread_message_alarm(void *data){
 
     while(1){
        if (send_short_message!=0&&error>0){
-
+    	num_of_phone_number=com_socket_fd_inst->num_of_phone_number;//NUM of Phone Number
 
     	printf("Send a Alarm message.\n");
     	for (j=0;j<num_of_phone_number;j++){
