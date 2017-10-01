@@ -263,7 +263,7 @@ void *thread_message_alarm(void *data){
 
 
     while(1){
-       if (send_short_message!=0&&error>0){
+       if (send_short_message!=0){
     	num_of_phone_number=com_socket_fd_inst->num_of_phone_number;//NUM of Phone Number
 
     	printf("Send a Alarm message.\n");
