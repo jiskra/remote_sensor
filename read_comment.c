@@ -177,10 +177,16 @@ void *thread_read_socket(void* data){
     struct read_instru_packet read_instru_packet_inst;
     struct manage_packet manage_packet_inst;
     char socket_rec_ptr[500];
+    char *phone_number[5];
+    char *message;
     com_socket_fd_inst=(struct com_socket_fd *)data;
     com_fd=com_socket_fd_inst->fd_com;
     socket_fd=com_socket_fd_inst->fd_socket;
     int i;
+    for (i=0;i<5;i++){
+    	phone_number[i]=malloc(sizeof(char)*12);
+    }
+    	message=malloc(sizeof(char)*100);
     if (verbose)
     	printf("Enter Socket received thread.\n");
     while(1){
@@ -203,12 +209,15 @@ void *thread_read_socket(void* data){
     	     		  if (verbose)
     	     			  printf("Num of Phone Number is %d.\n",manage_packet_inst.num_of_phone_number);
     	     		  for (i=0;i<com_socket_fd_inst->num_of_phone_number;i++){
-    	     		  com_socket_fd_inst->phone_number[i]=manage_packet_inst.phone_number[i];
+    	     		  com_socket_fd_inst->phone_number[i]=phone_number[i];
+    	     		  memcpy((void*)phone_number[i],(void*)manage_packet_inst.phone_number[i],sizeof(char)*12);
+    	     		  //com_socket_fd_inst->phone_number[i]=manage_packet_inst.phone_number[i];
     	     		  if (verbose){
     	     			  printf("The %d's PHONE NUMBER is %s.\n",i,com_socket_fd_inst->phone_number[i]);
     	     		  }
     	     		  }
-    	     		  com_socket_fd_inst->short_message=manage_packet_inst.message;
+    	     		  com_socket_fd_inst->short_message=message;
+    	     		  memcpy((void*)message,(void*)manage_packet_inst.message,sizeof(char)*100);
     	     		  if (verbose){
     	     			  printf("Send MESSAGE: %s\n",manage_packet_inst.message);
     	     		  }
@@ -244,7 +253,7 @@ void *thread_read_socket(void* data){
     	         	if (verbose)
     	         	    printf("[debug]Read AD data unlock com.\n");
     	         		  }
-    	         else{
+    	         else if (read_instru_packet_inst.instru!=READ_THRESHOLD){
     	        	 pthread_mutex_lock(&uart_lock);
     	        	 ret = write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     	        	 pthread_mutex_unlock(&uart_lock);}
