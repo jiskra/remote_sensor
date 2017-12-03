@@ -35,7 +35,7 @@
 
 unsigned char battery[6];
 unsigned char alarm_dis[6];
-unsigned char sample_interval[6]={1,1,1,1,1,1};
+unsigned char sample_interval[6]={12,12,12,12,12,12}; //change the period read AD to 60min
 unsigned char send_short_message=0;
 unsigned char check_counter=0;
 int last[6]={-1,-1,-1,-1,-1,-1};
@@ -150,7 +150,7 @@ int main(int argc, char **argv){
     const char const_file_path[50]="~/";
 
     struct com_socket_fd com_socket_fd_inst;
-    pthread_t read_com_t,output_t,read_socket_t,period_read_t,heart_t,period_send_message_t;
+    pthread_t read_com_t,output_t,read_socket_t,period_read_t,heart_t,period_send_message_t,console_heart_beat_t;
 #ifdef OLED
     pthread_t oled_display_t;
     int fd_i2c;
@@ -362,13 +362,18 @@ int main(int argc, char **argv){
         	printf("Create the thread of heart_beat error!\n");
         	return -1;
         }
+    if (pthread_create(&console_heart_beat_t,NULL,(void *)*thread_console_heartbeat,(void *)&com_socket_fd_inst) ==-1){
+            	printf("Create the thread of console heart_beat error!\n");
+            	return -1;
+            }
+
 
     //等待 线程结束
     pthread_join(read_com_t, NULL);
     pthread_join(read_socket_t,NULL);
     pthread_join(output_t,NULL);
     pthread_join(heart_t,NULL);
-    pthread_join(heart_t,NULL);
+    pthread_join(console_heart_beat_t,NULL);
 #ifdef OLED
     pthread_join(oled_display_t, NULL);
 #endif

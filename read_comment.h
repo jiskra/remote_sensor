@@ -46,6 +46,7 @@ void *thread_read_com(void *data);
 void *thread_read_socket(void *data);
 void *thread_period_read_power(void *data);
 void *thread_period_heartbeat(void* data);
+void *thread_console_heartbeat(void* data);
 
 extern unsigned char battery[];
 extern unsigned char alarm_dis[];
@@ -128,6 +129,21 @@ unsigned char addata[64];
 unsigned char check_sum;
 unsigned char tail1;
 unsigned char tail2;
+};
+//心跳报文，控制器->界面，每30秒发一次
+struct heart_beat{
+	unsigned char header1; //报文头0xf0
+	unsigned char header2;//报文头0xf0
+	unsigned char length;//报文长度 0x0b
+	unsigned char counter;//报文计数 每个报文加1,循环计数
+	unsigned char status0;//传感器1状态，0～100表示传感器电量，255表示传感器状态未知，254表示传感器丢失
+	unsigned char status1;//传感器2状态，0～100表示传感器电量，255表示传感器状态未知，254表示传感器丢失
+	unsigned char status2;//传感器3状态，0～100表示传感器电量，255表示传感器状态未知，254表示传感器丢失
+	unsigned char status3;//传感器4状态，0～100表示传感器电量，255表示传感器状态未知，254表示传感器丢失
+	unsigned char status4;//传感器5状态，0～100表示传感器电量，255表示传感器状态未知，254表示传感器丢失
+	unsigned char status5;//传感器6状态，0～100表示传感器电量，255表示传感器状态未知，254表示传感器丢失
+	unsigned char tail;//报文尾0xff
+
 };
 
 

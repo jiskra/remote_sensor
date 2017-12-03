@@ -45,19 +45,21 @@ void *thread_read_com(void *data){
 		}
 		valid_data_length+=ret;
 		while (valid_data_length>=FRAME_LENGTH){
+			int socket_send_key=0;
 				upload_data_tmp_inst=(struct upload_data*)(serial_in_buff+buff_ptr);
 			  //if ((serial_in_buff[buff_ptr+i]==0xfe&&serial_in_buff[buff_ptr+i+1]==0xfc&&serial_in_buff[buff_ptr+i+2]==FRAME_LENGTH) {//&&serial_in_buff[buff_ptr+i+FRAME_LENGTH-2]==0xfa&&serial_in_buff[buff_ptr+i+FRAME_LENGTH-1]){
 				if (upload_data_tmp_inst->header1==0xfe&&upload_data_tmp_inst->header2==0xfc&&upload_data_tmp_inst->tail1==0xfb&&upload_data_tmp_inst->tail2==0xfa&&upload_data_tmp_inst->length==FRAME_LENGTH) {
 				  printf("A frame check,and the checksum is correct.\n");
 				  //memcpy(&upload_data_inst,serial_in_buff+buff_ptr+i,sizeof(upload_data_inst));
 				 // if (check_counter==0){
-					  pthread_mutex_lock(&socket_lock);
-					  ret=sendto(socket_fd, (void*)upload_data_tmp_inst, FRAME_LENGTH,0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
-					  pthread_mutex_unlock(&socket_lock);
-					  printf("Send Success %d.\n",ret);
-					  if (ret<0){
-					 	perror("Send SOCKET Failed:");
-					 	exit(1);}
+				      socket_send_key=1;
+					  //pthread_mutex_lock(&socket_lock);
+					  //ret=sendto(socket_fd, (void*)upload_data_tmp_inst, FRAME_LENGTH,0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
+					  //pthread_mutex_unlock(&socket_lock);
+					  //printf("Send Success %d.\n",ret);
+					  //if (ret<0){
+					 //perror("Send SOCKET Failed:");
+					 //exit(1);}
 					  time_t timer;
 					  struct tm *tblock;
 					  timer = time(NULL);
@@ -122,10 +124,11 @@ void *thread_read_com(void *data){
 						  && (upload_data_tmp_inst->node_addr<=MAX_NODE_NUM)){
 
 					  last[upload_data_tmp_inst->node_addr-1]=0;
+					  socket_send_key=1;
 
 				  }
 				  if ((upload_data_tmp_inst->commend_type==POWER_REPORT)&& (upload_data_tmp_inst->node_addr<=MAX_NODE_NUM)){
-
+					 socket_send_key=1;
 					 battery[upload_data_tmp_inst->node_addr-1]=upload_data_tmp_inst->commend1;
 					 if (check_counter>0){
 						 pthread_mutex_lock(&check_lock);
@@ -138,8 +141,18 @@ void *thread_read_com(void *data){
 				  if ((upload_data_tmp_inst->commend_type==EXCEPTION_REPORT)&&
 					  (upload_data_tmp_inst->node_addr<=MAX_NODE_NUM)&&
 					  (upload_data_tmp_inst->commend3==LOST_STATUS)){
+					  if (last[upload_data_tmp_inst->node_addr-1]<=4000){ //long time for check power
+						  last[upload_data_tmp_inst->node_addr-1]=9997;
+						  socket_send_key=0;
+					  }
+					  else if (last[upload_data_tmp_inst->node_addr-1]<9999){
+						  last[upload_data_tmp_inst->node_addr-1]+=1;
+						  socket_send_key=0;
+					  }
+					  else {
+						  last[upload_data_tmp_inst->node_addr-1]=9999;
+						  socket_send_key=1;}
 
-					  last[upload_data_tmp_inst->node_addr-1]=9999;
 					  if (check_counter>0){
 						  pthread_mutex_lock(&check_lock);
 						  check_counter-=1;
@@ -159,7 +172,16 @@ void *thread_read_com(void *data){
 			    	buff_ptr=buff_ptr+i;
 			    	valid_data_length=valid_data_length-i;
 			    }*/
-			  }
+				 if (socket_send_key==1){
+					 pthread_mutex_lock(&socket_lock);
+					 ret=sendto(socket_fd, (void*)upload_data_tmp_inst, FRAME_LENGTH,0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
+					 pthread_mutex_unlock(&socket_lock);
+					 printf("Send Success %d.\n",ret);
+					 if (ret<0){
+						 perror("Send SOCKET Failed:");
+						 exit(1);}
+				 	}
+				}
 			  else {
 				  buff_ptr=buff_ptr+1;
 				  valid_data_length=valid_data_length-1;
@@ -291,15 +313,15 @@ void *thread_period_read_power(void* data){
     read_instru_packet_inst.commend1=(unsigned char)(com_socket_fd_inst->channel_id);
     read_instru_packet_inst.commend2=(unsigned char)(com_socket_fd_inst->PANID>>8);
     if (verbose)
-    	printf("PAIN ID high byte is %x.\n",read_instru_packet_inst.commend2);
+    	printf("[debug]PAIN ID high byte is %x.\n",read_instru_packet_inst.commend2);
     read_instru_packet_inst.commend3=(unsigned char)(com_socket_fd_inst->PANID&0xff);
     if (verbose)
-        printf("PAIN ID low byte is %x.\n",read_instru_packet_inst.commend3);
+        printf("[debug]PAIN ID low byte is %x.\n",read_instru_packet_inst.commend3);
     pthread_mutex_lock(&uart_lock);
     ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     pthread_mutex_unlock(&uart_lock);
     if (verbose)
-    	perror("Set Channel and PANID:");
+    	perror("[debug]Set Channel and PANID:");
 
     read_instru_packet_inst.instru=READ_POWER;
         	//read_instru_packet_inst.commend1=READ_POWER;
@@ -321,12 +343,12 @@ void *thread_period_read_power(void* data){
             printf("[debug]Read power unlock com.\n");
 
         if (verbose)
-        	printf("Read Power.\n");
+        	printf("[debug]Read Power.\n");
         	pthread_mutex_lock(&check_lock);
         	check_counter+=1;
         	pthread_mutex_unlock(&check_lock);
         if (ret<0){
-        	printf("Write Uart error.\n");
+        	printf("[Error]Write Uart error.\n");
         	pthread_exit(0);
         	}
         	sleep(5);
@@ -419,5 +441,57 @@ void *thread_period_heartbeat(void* data){
 
     	}
     	}
+    }
+}
+void *thread_console_heartbeat(void* data){
+	int com_fd;
+	int socket_fd;
+	int ret;
+	int i,j;
+    int sample_counter[6];
+    struct com_socket_fd *com_socket_fd_inst;
+    struct heart_beat heart_beat_inst;
+    unsigned char heart_beat_status[6]={0xff,0xff,0xff,0xff,0xff,0xff};
+    com_socket_fd_inst=(struct com_socket_fd*) data;
+    com_fd=com_socket_fd_inst->fd_com;
+    socket_fd=com_socket_fd_inst->fd_socket;
+    heart_beat_inst.header1=0xf0;
+    heart_beat_inst.header2=0xf0;
+    heart_beat_inst.length=0x0b;
+    heart_beat_inst.counter=0;
+    heart_beat_inst.tail=0xff;
+    while(1){
+    	for (i=0;i<6;i++){
+    		if (last[i]==-1)
+    			heart_beat_status[i]=255;
+    		else if (last[i]==9999){
+    			heart_beat_status[i]=254;
+    		}
+    		else {
+    			heart_beat_status[i]=battery[i];
+    		}
+
+    	}
+    	heart_beat_inst.status0=heart_beat_status[0];
+    	heart_beat_inst.status1=heart_beat_status[1];
+    	heart_beat_inst.status2=heart_beat_status[2];
+    	heart_beat_inst.status3=heart_beat_status[3];
+    	heart_beat_inst.status4=heart_beat_status[4];
+    	heart_beat_inst.status5=heart_beat_status[5];
+
+
+    	if (verbose){
+    		printf("[debug] send heart_beat.\n");
+    	}
+    	pthread_mutex_lock(&socket_lock);
+    	ret=sendto(socket_fd, (void*)com_socket_fd_inst, sizeof(heart_beat_inst),0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
+    	pthread_mutex_unlock(&socket_lock);
+    	printf("Send Success %d.\n",ret);
+    	if (ret<0){
+    		perror("Send SOCKET Failed:");
+    		exit(1);}
+    	heart_beat_inst.counter=heart_beat_inst.counter+1;
+    	sleep(30);
+
     }
 }

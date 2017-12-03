@@ -10,7 +10,7 @@
 #include "Fonts.h"
 #endif
 
-#define TIMEOUT 4000 //time out time is 4000s
+#define TIMEOUT 9999 //time out time is 4000s
 
 int sim900a_error;
 void cls(void)
@@ -48,10 +48,8 @@ void *thread_printmonitor(void *data)
 	   }
 	  for (i=0;i<6;i++){
 		 printf("Node_ID(%d)     %3d        %3d        %3d        %4d\n",i+1,battery[i],alarm_dis[i],sample_interval[i],last[i]);
-		 if (last[i]>=9999)
-			 last[i]=9999;
 
-		 else if (last[i]>=0)
+		 if (last[i]>=0&&last[i]<9997)
 			 last[i]=last[i]+1;
 	  }
 	  printf("Console last is %d.\n",console_last);
@@ -180,7 +178,7 @@ void *thread_oled_display(void *arg){
 			ssd1306_display_string(18, 0, "null", 16, 1);
 			ssd1306_display_string(74, 0, "null", 16, 1);
 		}
-		else if (last[i]>TIMEOUT){
+		else if (last[i]>=TIMEOUT){
 			ssd1306_display_string(58, 20, " LOSS! ", 16, 1);
 			ssd1306_display_string(18, 0, "null", 16, 1);
 			ssd1306_display_string(74, 0, "null", 16, 1);}
