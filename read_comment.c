@@ -481,10 +481,10 @@ void *thread_console_heartbeat(void* data){
 
 
     	if (verbose){
-    		printf("[debug] send heart_beat.\n");
+    		printf("[debug] send console heart_beat.\n");
     	}
     	pthread_mutex_lock(&socket_lock);
-    	ret=sendto(socket_fd, (void*)com_socket_fd_inst, sizeof(heart_beat_inst),0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
+    	ret=sendto(socket_fd, (void*)&heart_beat_inst, sizeof(heart_beat_inst),0,(struct sockaddr*)&dist_addr,sizeof(dist_addr));
     	pthread_mutex_unlock(&socket_lock);
     	printf("Send Success %d.\n",ret);
     	if (ret<0){
