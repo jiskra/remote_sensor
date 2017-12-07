@@ -296,32 +296,63 @@ void *thread_period_read_power(void* data){
 	int com_fd,socket_fd;
 	int ret;
 	int i;
+	int counter=0;
     struct com_socket_fd *com_socket_fd_inst;
     //struct instru_packet instru_packet_inst;
-    struct read_instru_packet read_instru_packet_inst;
+    struct read_instru_packet read_instru_packet_inst,reset_instru_packet_inst;
     com_socket_fd_inst=(struct com_socket_fd *)data;
     com_fd=com_socket_fd_inst->fd_com;
     socket_fd=com_socket_fd_inst->fd_socket;
+
     read_instru_packet_inst.header1=0xfc;
+    reset_instru_packet_inst.header1=0xfc;
+
     read_instru_packet_inst.header2=0xfe;
+    reset_instru_packet_inst.header2=0xfe;
 
     read_instru_packet_inst.tail1=0xfa;
+    reset_instru_packet_inst.tail1=0xfa;
+
     read_instru_packet_inst.tail2=0xfb;
+    reset_instru_packet_inst.tail2=0xfb;
 
     read_instru_packet_inst.length =sizeof(read_instru_packet_inst);
+    reset_instru_packet_inst.length=sizeof(reset_instru_packet_inst);
+
     read_instru_packet_inst.instru=SET_ZIGBEE;
+    reset_instru_packet_inst.instru=SET_ZIGBEE;
+
     read_instru_packet_inst.commend1=(unsigned char)(com_socket_fd_inst->channel_id);
+    reset_instru_packet_inst.commend1=(unsigned char)(com_socket_fd_inst->channel_id);
+
     read_instru_packet_inst.commend2=(unsigned char)(com_socket_fd_inst->PANID>>8);
+    reset_instru_packet_inst.commend2=(unsigned char)(com_socket_fd_inst->PANID>>8);
     if (verbose)
     	printf("[debug]PAIN ID high byte is %x.\n",read_instru_packet_inst.commend2);
+
     read_instru_packet_inst.commend3=(unsigned char)(com_socket_fd_inst->PANID&0xff);
+    reset_instru_packet_inst.commend3=(unsigned char)(com_socket_fd_inst->PANID&0xff);
+
+    read_instru_packet_inst.UID[0]=0x01; //set zigbee reset
     if (verbose)
         printf("[debug]PAIN ID low byte is %x.\n",read_instru_packet_inst.commend3);
     pthread_mutex_lock(&uart_lock);
     ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     pthread_mutex_unlock(&uart_lock);
     if (verbose)
-    	perror("[debug]Set Channel and PANID:");
+       printf("[debug]Reset zigbee.\n");
+
+
+    sleep(5);
+    read_instru_packet_inst.UID[0]=0x00; //clear zigbee reset
+
+    pthread_mutex_lock(&uart_lock);
+    ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    pthread_mutex_unlock(&uart_lock);
+
+    if (verbose)
+         printf("[debug]clear Reset zigbee and set PANID and channel id.\n");
+
 
     read_instru_packet_inst.instru=READ_POWER;
         	//read_instru_packet_inst.commend1=READ_POWER;
@@ -385,6 +416,30 @@ void *thread_period_read_power(void* data){
     		}
     		sleep(60);
     		}
+    	counter++;
+    	if (counter>3600){
+    		counter=0;
+
+    		reset_instru_packet_inst.UID[0]=0x01; //set zigbee reset
+    		if (verbose)
+    			printf("[debug]PAIN ID low byte is %x.\n",reset_instru_packet_inst.commend3);
+    		pthread_mutex_lock(&uart_lock);
+    		ret=write(com_fd,&reset_instru_packet_inst,sizeof(reset_instru_packet_inst));
+    		pthread_mutex_unlock(&uart_lock);
+    		if (verbose)
+    			printf("[debug]Reset zigbee.\n");
+    		sleep(60);
+    		reset_instru_packet_inst.UID[0]=0x00; //clear zigbee reset
+
+    		pthread_mutex_lock(&uart_lock);
+    		ret=write(com_fd,&reset_instru_packet_inst,sizeof(reset_instru_packet_inst));
+    		pthread_mutex_unlock(&uart_lock);
+
+    		if (verbose)
+    		     printf("[debug]clear Reset zigbee and set PANID and channel id.\n");
+
+    	}
+
     }
 }
 void *thread_period_heartbeat(void* data){

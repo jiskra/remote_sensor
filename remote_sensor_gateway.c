@@ -35,7 +35,7 @@
 
 unsigned char battery[6];
 unsigned char alarm_dis[6];
-unsigned char sample_interval[6]={12,12,12,12,12,12}; //change the period read AD to 60min
+unsigned char sample_interval[6]={1,1,1,1,1,1}; //change the period read AD to 60min
 unsigned char send_short_message=0;
 unsigned char check_counter=0;
 int last[6]={-1,-1,-1,-1,-1,-1};
