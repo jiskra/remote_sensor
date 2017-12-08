@@ -32,10 +32,10 @@
 #define DIST_ADDR "192.168.0.7"
 #define SRC_ADDR "192.168.0.5"
 #define PHONE_NUMBER "15996315105"
-
+#define VISION "Test Vision with auto reset"
 unsigned char battery[6];
 unsigned char alarm_dis[6];
-unsigned char sample_interval[6]={1,1,1,1,1,1}; //change the period read AD to 60min
+unsigned char sample_interval[6]={3,3,3,3,3,3}; //change the period read AD to 60min
 unsigned char send_short_message=0;
 unsigned char check_counter=0;
 int last[6]={-1,-1,-1,-1,-1,-1};
@@ -204,6 +204,7 @@ int main(int argc, char **argv){
     if (port==0)
     	port=SERVER_PORT;
     if (verbose){
+    	printf("%s\n",VISION);
     	printf("SERVER IP ADDRESS is %s\n",serv_addr);
     	printf("LOCAL IP ADDRESS is %s\n",local_addr);
     	printf("SERVER PORT is %d\n",port);

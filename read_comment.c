@@ -414,7 +414,7 @@ void *thread_period_read_power(void* data){
     			printf("Write Uart error.\n");
     			pthread_exit(0);
     		}
-    		sleep(60);
+    		sleep(5);
     		}
     	counter++;
     	if (counter>3600){
