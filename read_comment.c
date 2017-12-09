@@ -334,26 +334,33 @@ void *thread_period_read_power(void* data){
     reset_instru_packet_inst.commend3=(unsigned char)(com_socket_fd_inst->PANID&0xff);
 
     read_instru_packet_inst.UID[0]=0x01; //set zigbee reset
+    reset_instru_packet_inst.UID[0]=0x01;//set zigbee reset
+
+    reset_instru_packet_inst.UID[1]=0x12;
+    reset_instru_packet_inst.UID[2]=0x34;
+    reset_instru_packet_inst.UID[3]=0x56;
+    reset_instru_packet_inst.UID[4]=0x78;
+
     if (verbose)
-        printf("[debug]PAIN ID low byte is %x.\n",read_instru_packet_inst.commend3);
+        printf("[debug]PAIN ID low byte is %x.\n",reset_instru_packet_inst.commend3);
     pthread_mutex_lock(&uart_lock);
-    ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    ret=write(com_fd,&reset_instru_packet_inst,sizeof(reset_instru_packet_inst));
     pthread_mutex_unlock(&uart_lock);
     if (verbose)
        printf("[debug]Reset zigbee.\n");
 
 
     sleep(5);
-    read_instru_packet_inst.UID[0]=0x00; //clear zigbee reset
+    reset_instru_packet_inst.UID[0]=0x00; //clear zigbee reset
 
     pthread_mutex_lock(&uart_lock);
-    ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+    ret=write(com_fd,&reset_instru_packet_inst,sizeof(reset_instru_packet_inst));
     pthread_mutex_unlock(&uart_lock);
 
     if (verbose)
          printf("[debug]clear Reset zigbee and set PANID and channel id.\n");
 
-
+    sleep(5);
     read_instru_packet_inst.instru=READ_POWER;
         	//read_instru_packet_inst.commend1=READ_POWER;
 
@@ -417,7 +424,7 @@ void *thread_period_read_power(void* data){
     		sleep(5);
     		}
     	counter++;
-    	if (counter>3600){
+    	if (counter>=60){ //15s*x=real time
     		counter=0;
 
     		reset_instru_packet_inst.UID[0]=0x01; //set zigbee reset

@@ -32,10 +32,10 @@
 #define DIST_ADDR "192.168.0.7"
 #define SRC_ADDR "192.168.0.5"
 #define PHONE_NUMBER "15996315105"
-#define VISION "Test Vision with auto reset"
+#define VISION "Test Vision with auto reset Rev=20171209001"
 unsigned char battery[6];
 unsigned char alarm_dis[6];
-unsigned char sample_interval[6]={3,3,3,3,3,3}; //change the period read AD to 60min
+unsigned char sample_interval[6]={1,1,1,1,1,1}; //change the period read AD to 60min
 unsigned char send_short_message=0;
 unsigned char check_counter=0;
 int last[6]={-1,-1,-1,-1,-1,-1};
