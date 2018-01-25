@@ -32,12 +32,14 @@
 #define DIST_ADDR "192.168.0.7"
 #define SRC_ADDR "192.168.0.5"
 #define PHONE_NUMBER "15996315105"
-#define VISION "Test Vision with auto reset Rev=20171209001"
+#define VISION "Rev:2017-12-10-003"
+#define VISION_DESCRIBE "The version remove Reset."
 unsigned char battery[6];
 unsigned char alarm_dis[6];
 unsigned char sample_interval[6]={1,1,1,1,1,1}; //change the period read AD to 60min
 unsigned char send_short_message=0;
 unsigned char check_counter=0;
+char revision_char[110]=VISION;
 int last[6]={-1,-1,-1,-1,-1,-1};
 int console_last=-1;
 int verbose=0; //verbose mode
@@ -204,7 +206,7 @@ int main(int argc, char **argv){
     if (port==0)
     	port=SERVER_PORT;
     if (verbose){
-    	printf("%s\n",VISION);
+    	printf("%s%s\n",VISION,VISION_DESCRIBE);
     	printf("SERVER IP ADDRESS is %s\n",serv_addr);
     	printf("LOCAL IP ADDRESS is %s\n",local_addr);
     	printf("SERVER PORT is %d\n",port);

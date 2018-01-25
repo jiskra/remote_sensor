@@ -28,6 +28,7 @@ void *thread_printmonitor(void *data)
     while(1){
      if (!verbose){
       cls();}
+      printf("%s\n",revision_char);
 	  printf ("      Remote sensor monitor\n");
 	  switch (t%4){
 	    case 0:
@@ -76,10 +77,19 @@ void *thread_oled_display(void *arg){
 		com_socket_fd_inst=(struct com_socket_fd*) arg;
 		char dispaly_buff[20];
 
-		ssd1306_init();
-		while (1){
+	   ssd1306_init();
+	   while(1){
 	   ssd1306_clear_screen(0xFF);
 	   sleep(1);
+	   ssd1306_clear_screen(0x00);
+	   ssd1306_display_string(0, 0, "Version Tag", 16, 1);
+	   ssd1306_display_string(0, 32, revision_char, 16, 1);
+
+	   ssd1306_refresh_gram();
+
+	   sleep(2);
+
+
 	   ssd1306_clear_screen(0x00);
 	   if (sim900a_error==0)
 	   ssd1306_display_string(0, 0, "GSM READY", 16, 1);

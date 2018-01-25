@@ -253,6 +253,17 @@ void *thread_read_socket(void* data){
     	       if((read_instru_packet_inst.instru==READ_THRESHOLD)&&(read_instru_packet_inst.node_addr<=MAX_NODE_NUM&&read_instru_packet_inst.node_addr>0 )){
     	    	   alarm_dis[read_instru_packet_inst.node_addr-1]=read_instru_packet_inst.commend2;
     	    	   if (verbose)
+       	         	pthread_mutex_lock(&write_ad_lock);
+       	         	if (verbose)
+       	         		printf("[debug]Read AD data lock com.\n");
+       	         	pthread_mutex_lock(&uart_lock);
+       	         	ret = write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
+       	         	pthread_mutex_unlock(&uart_lock);
+       	         	sleep(60);
+       	         	pthread_mutex_unlock(&write_ad_lock);
+       	         	if (verbose)
+       	         	    printf("[debug]Read AD data unlock com.\n");
+
     	    		   printf("Received Set Threshold and alarm packet.\n");
     	       }
 
@@ -274,11 +285,7 @@ void *thread_read_socket(void* data){
     	         	pthread_mutex_unlock(&write_ad_lock);
     	         	if (verbose)
     	         	    printf("[debug]Read AD data unlock com.\n");
-    	         		  }
-    	         else if (read_instru_packet_inst.instru!=READ_THRESHOLD){
-    	        	 pthread_mutex_lock(&uart_lock);
-    	        	 ret = write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
-    	        	 pthread_mutex_unlock(&uart_lock);}
+    	         }
 
     		   if(ret == -1){
     		   printf("Wirte com error.\n");
@@ -407,7 +414,7 @@ void *thread_period_read_power(void* data){
     		pthread_mutex_lock(&uart_lock);
     		ret=write(com_fd,&read_instru_packet_inst,sizeof(read_instru_packet_inst));
     		pthread_mutex_unlock(&uart_lock);
-    		sleep(10);
+    		sleep(55);
     		pthread_mutex_unlock(&write_ad_lock);
     		if (verbose)
     		  printf("[debug]Read power unlock com.\n");
@@ -422,30 +429,31 @@ void *thread_period_read_power(void* data){
     			pthread_exit(0);
     		}
     		sleep(5);
+//    		counter++;
+//    		if (counter>=15){ //60s*x=real time
+//    		    counter=0;
+//
+//    		    reset_instru_packet_inst.UID[0]=0x01; //set zigbee reset
+//    		    if (verbose)
+//    		    	printf("[debug]PAIN ID low byte is %x.\n",reset_instru_packet_inst.commend3);
+//    		    pthread_mutex_lock(&uart_lock);
+//    		    ret=write(com_fd,&reset_instru_packet_inst,sizeof(reset_instru_packet_inst));
+//    		    pthread_mutex_unlock(&uart_lock);
+//    		    if (verbose)
+//    		    	printf("[debug]Reset zigbee.\n");
+//    		    sleep(60);
+//    		    reset_instru_packet_inst.UID[0]=0x00; //clear zigbee reset
+//
+//    		    pthread_mutex_lock(&uart_lock);
+//    		    ret=write(com_fd,&reset_instru_packet_inst,sizeof(reset_instru_packet_inst));
+//    		    pthread_mutex_unlock(&uart_lock);
+//
+//    		    if (verbose)
+//    		    	printf("[debug]clear Reset zigbee and set PANID and channel id.\n");
+//
+//    		   }
     		}
-    	counter++;
-    	if (counter>=60){ //15s*x=real time
-    		counter=0;
 
-    		reset_instru_packet_inst.UID[0]=0x01; //set zigbee reset
-    		if (verbose)
-    			printf("[debug]PAIN ID low byte is %x.\n",reset_instru_packet_inst.commend3);
-    		pthread_mutex_lock(&uart_lock);
-    		ret=write(com_fd,&reset_instru_packet_inst,sizeof(reset_instru_packet_inst));
-    		pthread_mutex_unlock(&uart_lock);
-    		if (verbose)
-    			printf("[debug]Reset zigbee.\n");
-    		sleep(60);
-    		reset_instru_packet_inst.UID[0]=0x00; //clear zigbee reset
-
-    		pthread_mutex_lock(&uart_lock);
-    		ret=write(com_fd,&reset_instru_packet_inst,sizeof(reset_instru_packet_inst));
-    		pthread_mutex_unlock(&uart_lock);
-
-    		if (verbose)
-    		     printf("[debug]clear Reset zigbee and set PANID and channel id.\n");
-
-    	}
 
     }
 }
@@ -469,9 +477,16 @@ void *thread_period_heartbeat(void* data){
 
     read_instru_packet_inst.length =sizeof(read_instru_packet_inst);
     read_instru_packet_inst.instru=READ_AD;
-    read_instru_packet_inst.commend1=0x00;
-    read_instru_packet_inst.commend2=0x00;
-    read_instru_packet_inst.commend3=0x00;
+//    read_instru_packet_inst.commend1=0x00;
+//    read_instru_packet_inst.commend2=0x00;
+//    read_instru_packet_inst.commend3=0x00;
+
+    read_instru_packet_inst.commend1=(unsigned char)(com_socket_fd_inst->channel_id);
+
+    read_instru_packet_inst.commend2=(unsigned char)(com_socket_fd_inst->PANID>>8);
+
+    read_instru_packet_inst.commend3=(unsigned char)(com_socket_fd_inst->PANID&0xff);
+
     if (verbose)
     	printf("Enter the period READ AD thread.\n");
     while(1){

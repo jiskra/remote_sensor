@@ -24,6 +24,7 @@ extern int last[];
 extern int console_last;
 extern unsigned char check_counter;
 extern int verbose; //Debug message display
+extern char revision_char[110];
 
 void *thread_printmonitor(void *data);
 void *thread_oled_display(void *arg);
